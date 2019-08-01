@@ -1,0 +1,1 @@
+The component allows triggering Tableu extract refresh tasks. 

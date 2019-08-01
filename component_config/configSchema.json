@@ -1,0 +1,85 @@
+{
+  "type": "object",
+  "title": "Configuration",
+  "required": [
+    "user",
+    "#password",
+    "endpoint",
+    "datasources",
+    "poll_mode"
+  ],
+  "properties": {
+    "user": {
+      "type": "string",
+      "title": "Tableau user name",
+      "propertyOrder": 100
+    },
+    "#password": {
+      "type": "string",
+      "title": "Tableau user password",
+      "format": "password",
+      "propertyOrder": 200
+    },
+    "endpoint": {
+      "type": "string",
+      "title": "Tableau server API endpoint",
+      "propertyOrder": 250
+    },
+    "poll_mode": {
+      "type": "number",
+      "title": "Poll mode",
+      "description": "If set to `Yes` the trigger will wait for all triggered jobs to finish, otherwise it will trigger the all jobs and finish successfully right after.",
+      "propertyOrder": 455,
+      "enum": [
+        0,
+        1
+      ],
+      "default": 0,
+      "options": {
+        "enum_titles": [
+          "No",
+          "Yes"
+        ]
+      }
+    },
+    "datasources": {
+      "type": "array",
+      "title": "Tableau datasources",
+      "description": "List of datasources with extracts to trigger. Note that there must be appropriate tasks/schedules set for all these sources otherwise the execution will fail",
+      "items": {
+        "format": "grid",
+        "type": "object",
+        "title": "Extract",
+        "required": [
+          "name",
+          "type"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Data source name.",
+            "description": "Data source name as found in Tableau.",
+            "propertyOrder": 1000
+          },
+          "type": {
+            "enum": [
+              "RefreshExtractTask",
+              "IncrementalRefreshExtractTask"
+            ],
+            "options": {
+              "enum_titles": [
+                "Full",
+                "Incremental"
+              ]
+            },
+            "type": "string",
+            "title": "Refresh type",
+            "description": "Extract refresh type",
+            "default": "Full",
+            "propertyOrder": 2000
+          }
+        }
+      }
+    }
+  }
+}
