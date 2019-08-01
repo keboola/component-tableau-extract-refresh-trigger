@@ -103,7 +103,6 @@ class Component(KBCEnvHandler):
 
     def validate_dataset_names(self, all_ds, datasources):
         conf_ds_names = dict()
-        conf_ds = dict()
         for ds in datasources:
             conf_ds_names[ds['name']] = ds['type']
         ds_names = [ds.name for ds in all_ds[0]]
