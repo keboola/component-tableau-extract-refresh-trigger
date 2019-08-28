@@ -9,6 +9,10 @@ Trigger Tableu extract refresh tasks directly from KBC.
 - **Endpoint** - REQ Tableu server API endpoint.
 - **Poll mode** - Specify whether the app should wait for all triggered tasks to finish.
 - **Tableau datasources** - Names of datasources with extract refresh tasks to trigger. 
+
+
+
+
 **NOTE:** Each datasource **must have** the required extract refresh set up, e.g. `Full refresh`, otherwise it won't be recognized 
 and the trigger will fail.
 
