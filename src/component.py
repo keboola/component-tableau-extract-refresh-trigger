@@ -14,6 +14,9 @@ from kbc.env_handler import KBCEnvHandler
 
 
 # configuration variables
+KEY_TAG = 'tag'
+KEY_NAME = 'name'
+KEY_LUID = 'luid'
 KEY_API_PASS = '#password'
 KEY_USER_NAME = 'user'
 KEY_ENDPOINT = 'endpoint'
@@ -39,6 +42,11 @@ class Component(KBCEnvHandler):
         self.set_default_logger('DEBUG' if debug else 'INFO')
         logging.info('Running version %s', APP_VERSION)
         logging.info('Loading configuration...')
+
+        if not debug:
+            # suppress info logging on the Tableau endpoints
+            logging.getLogger('tableau.endpoint.jobs').setLevel(logging.ERROR)
+            logging.getLogger('tableau.endpoint.datasources').setLevel(logging.ERROR)
 
         try:
             self.validate_config()
@@ -66,18 +74,24 @@ class Component(KBCEnvHandler):
             # tasks
             # filter only datasource refresh tasks
             logging.info('Validating extract names...')
-            all_ds = self.server.datasources.get()
+
+            all_ds, validation_errors = self._get_all_ds_by_filter(data_sources)
+            if validation_errors:
+                for err in validation_errors:
+                    logging.error(err)
+                exit(1)
+
             ds_to_refresh = self.validate_dataset_names(all_ds, data_sources)
 
-            tasks = self.get_datasource_refresh_tasks()
+            tasks = self.get_all_datasource_refresh_tasks()
             # get all datasources for tasks
             logging.info('Retrieving extract tasks and validating extract types...')
             ds_tasks = self.get_all_ds_for_tasks(tasks)
             self.validate_dataset_types(ds_tasks, ds_to_refresh)
 
             for ds in data_sources:
-                logging.info(F'Triggering extract: {ds}')
                 task = ds_tasks[ds[KEY_DS_NAME]][ds[KEY_DS_TYPE].lower()]
+                logging.info(F'Triggering extract for: "{ds[KEY_DS_NAME]}" with LUID: "{task.target.id}""')
                 job_id = self._run_task(task)
                 executed_jobs[ds[KEY_DS_NAME]] = job_id
 
@@ -95,17 +109,16 @@ class Component(KBCEnvHandler):
         job_id = root['tsResponse']['job']['@id']
         return job_id
 
-    def get_datasource_refresh_tasks(self):
+    def get_all_datasource_refresh_tasks(self):
         # filter only datasource refresh tasks
-        tasks, pitem = self.server.tasks.get()
-
+        tasks = list(tsc.Pager(self.server.tasks))
         return [task for task in tasks if task.target.type == 'datasource']
 
     def validate_dataset_names(self, all_ds, datasources):
         conf_ds_names = dict()
         for ds in datasources:
             conf_ds_names[ds['name']] = ds['type']
-        ds_names = [ds.name for ds in all_ds[0]]
+        ds_names = [ds.name for ds in all_ds]
         inv_names = [nm for nm in conf_ds_names if nm not in ds_names]
         if inv_names:
             raise ValueError(F'Some datasets do not exist! {inv_names}')
@@ -142,6 +155,53 @@ class Component(KBCEnvHandler):
         if failed_jobs:
             raise RuntimeError(F'Some jobs did not finish properly: {failed_jobs}')
 
+    def _get_all_ds_by_filter(self, data_sources):
+        all_ds = list()
+        validation_errors = list()
+        for ds_filter in data_sources:
+            # if luid specified get the source
+            if ds_filter.get(KEY_LUID):
+                res = self.server.datasources.get_by_id(ds_filter[KEY_LUID])
+                ds = [res] if res else []
+
+            else:
+                ds = self._get_all_datasources_by_filter(ds_filter[KEY_NAME], ds_filter.get(KEY_TAG))
+            all_ds.extend(ds)
+            err = self._validate_ds_result(ds_filter, ds)
+            if err:
+                validation_errors.append(err)
+
+        return all_ds, validation_errors
+
+    def _validate_ds_result(self, filter, ds):
+        ds_error = None
+        if not ds and not filter.get(KEY_LUID):
+            ds_error = F'There is no result for combination of name & tag {filter}'
+        if not ds and filter.get(KEY_LUID):
+            ds_error = F'There is no result for specified LUID, the datasource does not exist {filter[KEY_LUID]}'
+
+        # this happens when luid is set and name is not matching the dataset
+        if len(ds) == 1 and filter[KEY_NAME] != ds[0].name:
+            ds_error = F"The dataset name retrieved by the specified LUID: '{ds[0].name}' " \
+                       F"does not match the '{filter[KEY_NAME]}' specified in corresponding filter: {filter}"
+
+        if len(ds) > 1:
+            ds_error = F"There is more results for given filter: {filter}, " \
+                       F"set more specific tag or use LUID. The results are: {ds}"
+        return ds_error
+
+    def _get_all_datasources_by_filter(self, name, tag):
+        req_option = tsc.RequestOptions()
+        req_option.filter.add(tsc.Filter(tsc.RequestOptions.Field.Name,
+                                         tsc.RequestOptions.Operator.Equals,
+                                         name))
+        if tag:
+            req_option.filter.add(tsc.Filter(tsc.RequestOptions.Field.Tags,
+                                             tsc.RequestOptions.Operator.Equals,
+                                             tag))
+        datasource_items = list(tsc.Pager(self.server.datasources, req_option))
+        return datasource_items
+
 
 """
         Main entrypoint
@@ -150,6 +210,10 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         debug = sys.argv[1]
     else:
-        debug = True
+        debug = False
     comp = Component(debug)
     comp.run()
+    # try:
+    #     comp.run()
+    # except Exception as e:
+    #     logging.error(e)
