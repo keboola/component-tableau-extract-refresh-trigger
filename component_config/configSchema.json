@@ -52,14 +52,28 @@
         "title": "Extract",
         "required": [
           "name",
+          "tag",
+          "luid",
           "type"
         ],
         "properties": {
           "name": {
             "type": "string",
             "title": "Data source name.",
-            "description": "Data source name as found in Tableau.",
+            "description": "<b>Required</b> Data source name as found in Tableau.",
             "propertyOrder": 1000
+          },
+          "tag": {
+            "type": "string",
+            "title": "Data source tag.",
+            "description": "Optional data source tag as found in Tableau.",
+            "propertyOrder": 2000
+          },
+          "luid": {
+            "type": "string",
+            "title": "Tableu server unique LUID of the datasource (as represented via API)",
+            "description": "Optional unique datasource identifier i.e. xx12-3324-1323, available via API. This ensures unique identification of the datasource. If specified, the 'tag' parameter is ignored.",
+            "propertyOrder": 3000
           },
           "type": {
             "enum": [
@@ -76,7 +90,7 @@
             "title": "Refresh type",
             "description": "Extract refresh type",
             "default": "Full",
-            "propertyOrder": 2000
+            "propertyOrder": 4000
           }
         }
       }

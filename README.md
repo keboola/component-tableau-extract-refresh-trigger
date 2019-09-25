@@ -8,9 +8,22 @@ Trigger Tableu extract refresh tasks directly from KBC.
 - **Password** - REQ Tableau password
 - **Endpoint** - REQ Tableu server API endpoint.
 - **Poll mode** - Specify whether the app should wait for all triggered tasks to finish.
-- **Tableau datasources** - Names of datasources with extract refresh tasks to trigger. 
+- **Tableau datasources** - Names of datasources with extract refresh tasks to trigger.
+	 - **name** - [REQ] Data source name as found in Tableau.
+	 - **tag** - [OPT] Data source tag as found in Tableau. 
+	 - **Tableu server unique LUID** [OPT] Optional unique datasource identifier i.e. xx12-3324-1323, 
+	 available via API. This ensures unique identification of the datasource. If specified, the `tag` parameter is ignored. 
+	 Each run the LUID of refreshed datasets is outputed in the job log - you may use it to get the LUID by specifying only name/tag.
+ 
 **NOTE:** Each datasource **must have** the required extract refresh set up, e.g. `Full refresh`, otherwise it won't be recognized 
 and the trigger will fail.
+
+#### LUID setup
+
+If you don't know the LUID you may use unique combination of the `name` and `tag` parameters to identify the datasource. Once you run the configuration 
+for the first time, the appropriate `LUID` will be displayed for each specified data source in the **job log**. Use it to update the `LUID` after first run 
+to ensure unique match, since there may be more datasources with the same name and tag potentially in the future but LUID is unique at all times.
+
 
 ## Development
 
