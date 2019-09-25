@@ -80,13 +80,14 @@ class Component(KBCEnvHandler):
                 for err in validation_errors:
                     logging.error(err)
                 exit(1)
-
+            logging.debug(F'recognized datasets: {all_ds}')
             ds_to_refresh = self.validate_dataset_names(all_ds, data_sources)
 
             tasks = self.get_all_datasource_refresh_tasks()
             # get all datasources for tasks
             logging.info('Retrieving extract tasks and validating extract types...')
             ds_tasks = self.get_all_ds_for_tasks(tasks)
+            logging.debug(F"Found tasks: {ds_tasks}")
             self.validate_dataset_types(ds_tasks, ds_to_refresh)
 
             for ds in data_sources:
