@@ -212,8 +212,7 @@ if __name__ == "__main__":
     else:
         debug = False
     comp = Component(debug)
-    comp.run()
-    # try:
-    #     comp.run()
-    # except Exception as e:
-    #     logging.error(e)
+    try:
+        comp.run()
+    except Exception as e:
+        logging.error(e)
