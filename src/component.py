@@ -129,6 +129,7 @@ class Component(KBCEnvHandler):
         ds_tasks = dict()
         for t in tasks:
             ds = self.server.datasources.get_by_id(t.target.id)
+            # normalize increment task
             ds_tasks[ds.name] = {t.task_type.lower(): t}
 
         return ds_tasks

@@ -78,7 +78,7 @@
           "type": {
             "enum": [
               "RefreshExtractTask",
-              "IncrementalRefreshExtractTask"
+              "IncrementExtractTask"
             ],
             "options": {
               "enum_titles": [
