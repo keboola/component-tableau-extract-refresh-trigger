@@ -10,6 +10,6 @@ combination with datasource name to ensure there is no ambiguity in the setup, b
 multiple datasources to have same name and/or tags.
 
 If you don't know the LUID you may use unique combination of the `name` and `tag` parameters first to identify the datasource. Once you run the configuration 
-the configuration for the first time, the appropriate `LUID` will be displayed for each specified data source in the **job log**. 
+for the first time, the appropriate `LUID` will be displayed for each specified data source in the **job log**. 
 Look for message like `INFO - Triggering extract for: "TABLEAU_TRIGGER_TEST" with LUID: "067098d0-d160-4117-977c-b18f1051aec7""` 
 in the job log and use the displayed `LUID` to update the configuration after first run.
