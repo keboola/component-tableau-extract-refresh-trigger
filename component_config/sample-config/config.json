@@ -24,7 +24,7 @@
     "endpoint":"https://dev-tableau.com",
     "datasources": [{"name":"xeelo_vendor", "type": "RefreshExtractTask"}],
     "poll_mode": 1,
-    "debug": true
+    "debug": false
   },
   "image_parameters": {
     "syrup_url": "https://syrup.keboola.com/"

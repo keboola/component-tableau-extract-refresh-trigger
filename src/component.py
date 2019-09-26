@@ -175,6 +175,13 @@ class Component(KBCEnvHandler):
 
         return all_ds, validation_errors
 
+    def _str_ds(self, ds_arr):
+        str = '['
+        for ds in ds_arr:
+            str += F'(Name: {ds.name}, Project:{ds.project_name}, LUID: {ds.id}, tags: {ds.tags}), '
+        str += ']'
+        return str
+
     def _validate_ds_result(self, filter, ds):
         ds_error = None
         if not ds and not filter.get(KEY_LUID):
@@ -189,7 +196,7 @@ class Component(KBCEnvHandler):
 
         if len(ds) > 1:
             ds_error = F"There is more results for given filter: {filter}, " \
-                       F"set more specific tag or use LUID. The results are: {ds}"
+                       F"set more specific tag or use LUID. The results are: {self._str_ds(ds)}"
         return ds_error
 
     def _get_all_datasources_by_filter(self, name, tag):
