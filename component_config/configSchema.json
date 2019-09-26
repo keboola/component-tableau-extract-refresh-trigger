@@ -28,7 +28,7 @@
     "poll_mode": {
       "type": "number",
       "title": "Poll mode",
-      "description": "If set to `Yes` the trigger will wait for all triggered jobs to finish, otherwise it will trigger the all jobs and finish successfully right after.",
+      "description": "If set to `Yes` the trigger will wait for all triggered jobs to finish, otherwise it will trigger all the jobs and finish successfully right after.",
       "propertyOrder": 455,
       "enum": [
         0,
