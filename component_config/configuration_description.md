@@ -7,7 +7,7 @@ Any datasources without extract refresh defined won't be available for the trigg
 
 The LUIDs are Tableau server internal unique identificators of datasource objects. It is recommended to use the LUID in 
 combination with datasource name to ensure there is no ambiguity in the setup, because in theory, it is possible 
-multiple datasources to have same name and/or tags.
+for multiple datasources to have same name and/or tags.
 
 If you don't know the LUID you may use unique combination of the `name` and `tag` parameters first to identify the datasource. Once you run the configuration 
 for the first time, the appropriate `LUID` will be displayed for each specified data source in the **job log**. 
