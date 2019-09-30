@@ -86,7 +86,7 @@ class Component(KBCEnvHandler):
             tasks = self.get_all_datasource_refresh_tasks()
             # get all datasources for tasks
             logging.info('Retrieving extract tasks and validating extract types...')
-            ds_tasks = self.get_all_ds_for_tasks(tasks)
+            ds_tasks = self.get_all_ds_for_tasks(tasks, all_ds)
             logging.debug(F"Found tasks: {ds_tasks}")
             self.validate_dataset_types(ds_tasks, ds_to_refresh)
 
@@ -125,12 +125,20 @@ class Component(KBCEnvHandler):
             raise ValueError(F'Some datasets do not exist! {inv_names}')
         return conf_ds_names
 
-    def get_all_ds_for_tasks(self, tasks):
+    def get_all_ds_for_tasks(self, tasks, all_ds):
         ds_tasks = dict()
+        ds_ids = dict()
+        for ds in all_ds:
+            ds_ids[ds.id] = ds.name
+
         for t in tasks:
+            if t.target.id not in ds_ids:
+                continue
+
             ds = self.server.datasources.get_by_id(t.target.id)
             # normalize increment task
-            ds_tasks[ds.name] = {t.task_type.lower(): t}
+            ds_tasks[ds.name] = ds_tasks.get(ds.name, dict())
+            ds_tasks[ds.name][t.task_type.lower()] = t
 
         return ds_tasks
 
