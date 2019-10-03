@@ -39,20 +39,20 @@ class Component(KBCEnvHandler):
         if self.cfg_params.get('debug'):
             debug = True
 
-        self.set_default_logger('DEBUG' if debug else 'INFO')
+        # self.set_default_logger('DEBUG' if debug else 'INFO')
         logging.info('Running version %s', APP_VERSION)
         logging.info('Loading configuration...')
 
         if not debug:
             # suppress info logging on the Tableau endpoints
-            logging.getLogger('tableau.endpoint.jobs').setLevel(logging.ERROR)
-            logging.getLogger('tableau.endpoint.datasources').setLevel(logging.ERROR)
+            logging.getLogger('tableau.endpoint.jobs').setLevel(logging.exception)
+            logging.getLogger('tableau.endpoint.datasources').setLevel(logging.exception)
 
         try:
             self.validate_config()
             self.validate_image_parameters(MANDATORY_IMAGE_PARS)
         except ValueError as e:
-            logging.error(e)
+            logging.exception(e)
             exit(1)
 
         # intialize instance parameteres
@@ -78,7 +78,7 @@ class Component(KBCEnvHandler):
             all_ds, validation_errors = self._get_all_ds_by_filter(data_sources)
             if validation_errors:
                 for err in validation_errors:
-                    logging.error(err)
+                    logging.exception(err)
                 exit(1)
             logging.debug(F'recognized datasets: {all_ds}')
             ds_to_refresh = self.validate_dataset_names(all_ds, data_sources)
@@ -228,9 +228,9 @@ if __name__ == "__main__":
         debug = sys.argv[1]
     else:
         debug = False
-    comp = Component(debug)
     try:
+        comp = Component(debug)
         comp.run()
     except Exception as e:
-        logging.error(e)
+        logging.exception(e)
         exit(1)

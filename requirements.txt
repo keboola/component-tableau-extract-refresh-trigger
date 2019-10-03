@@ -1,4 +1,4 @@
-https://bitbucket.org/kds_consulting_team/keboola-python-util-lib/get/0.2.4.zip#egg=kbc
+install --upgrade --force-reinstall https://bitbucket.org/kds_consulting_team/keboola-python-util-lib/get/0.2.0.zip
 mock
 freezegun
 tableauserverclient
