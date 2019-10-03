@@ -34,12 +34,12 @@ APP_VERSION = '0.0.1'
 class Component(KBCEnvHandler):
 
     def __init__(self, debug=False):
-        KBCEnvHandler.__init__(self, MANDATORY_PARS)
+        KBCEnvHandler.__init__(self, MANDATORY_PARS, )
         # override debug from config
         if self.cfg_params.get('debug'):
             debug = True
 
-        # self.set_default_logger('DEBUG' if debug else 'INFO')
+        self.set_gelf_logger('DEBUG' if debug else 'INFO')
         logging.info('Running version %s', APP_VERSION)
         logging.info('Loading configuration...')
 
