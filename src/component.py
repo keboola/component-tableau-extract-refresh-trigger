@@ -45,8 +45,8 @@ class Component(KBCEnvHandler):
 
         if not debug:
             # suppress info logging on the Tableau endpoints
-            logging.getLogger('tableau.endpoint.jobs').setLevel(logging.exception)
-            logging.getLogger('tableau.endpoint.datasources').setLevel(logging.exception)
+            logging.getLogger('tableau.endpoint.jobs').setLevel(logging.ERROR)
+            logging.getLogger('tableau.endpoint.datasources').setLevel(logging.ERROR)
 
         try:
             self.validate_config()
