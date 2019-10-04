@@ -39,7 +39,7 @@ class Component(KBCEnvHandler):
         if self.cfg_params.get('debug'):
             debug = True
 
-        self.set_gelf_logger('DEBUG' if debug else 'INFO')
+        self.set_gelf_logger('DEBUG' if debug else 'INFO', 'TCP')
         logging.info('Running version %s', APP_VERSION)
         logging.info('Loading configuration...')
 
