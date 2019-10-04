@@ -34,12 +34,12 @@ APP_VERSION = '0.0.1'
 class Component(KBCEnvHandler):
 
     def __init__(self, debug=False):
-        KBCEnvHandler.__init__(self, MANDATORY_PARS)
+        KBCEnvHandler.__init__(self, MANDATORY_PARS, )
         # override debug from config
         if self.cfg_params.get('debug'):
             debug = True
 
-        self.set_default_logger('DEBUG' if debug else 'INFO')
+        self.set_gelf_logger('DEBUG' if debug else 'INFO', 'TCP')
         logging.info('Running version %s', APP_VERSION)
         logging.info('Loading configuration...')
 
@@ -52,7 +52,7 @@ class Component(KBCEnvHandler):
             self.validate_config()
             self.validate_image_parameters(MANDATORY_IMAGE_PARS)
         except ValueError as e:
-            logging.error(e)
+            logging.exception(e)
             exit(1)
 
         # intialize instance parameteres
@@ -78,7 +78,7 @@ class Component(KBCEnvHandler):
             all_ds, validation_errors = self._get_all_ds_by_filter(data_sources)
             if validation_errors:
                 for err in validation_errors:
-                    logging.error(err)
+                    logging.exception(err)
                 exit(1)
             logging.debug(F'recognized datasets: {all_ds}')
             ds_to_refresh = self.validate_dataset_names(all_ds, data_sources)
@@ -228,9 +228,9 @@ if __name__ == "__main__":
         debug = sys.argv[1]
     else:
         debug = False
-    comp = Component(debug)
     try:
+        comp = Component(debug)
         comp.run()
     except Exception as e:
-        logging.error(e)
+        logging.exception(e)
         exit(1)
