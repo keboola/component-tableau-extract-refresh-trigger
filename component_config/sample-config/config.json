@@ -19,10 +19,17 @@
     }
   },
   "parameters": {
-    "#password": "sss",
-    "user": "esr",
-    "endpoint":"https://dev-tableau.com",
-    "datasources": [{"name":"xeelo_vendor", "type": "RefreshExtractTask"}],
+    "#password": "password",
+    "user": "username",
+    "endpoint": "https://dev-tableau.example.com",
+    "datasources": [
+      {
+        "name": "MY_EXTRACT",
+        "tag": "some_optional_tag",
+        "luid": "LUID (if specified other params are ignored)",
+        "type": " RefreshExtractTask OR IncrementExtractTask"
+      }
+    ],
     "poll_mode": 1,
     "debug": false
   },
