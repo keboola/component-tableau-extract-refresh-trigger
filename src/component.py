@@ -4,6 +4,7 @@ Template Component main class.
 '''
 
 import logging
+import os
 import sys
 
 import tableauserverclient as tsc
@@ -39,7 +40,12 @@ class Component(KBCEnvHandler):
         if self.cfg_params.get('debug'):
             debug = True
 
-        self.set_gelf_logger('DEBUG' if debug else 'INFO', 'TCP')
+        log_level = logging.DEBUG if debug else logging.INFO
+        # setup GELF if available
+        if os.getenv('KBC_LOGGER_ADDR', None):
+            self.set_gelf_logger(log_level)
+        else:
+            self.set_default_logger(log_level)
         logging.info('Running version %s', APP_VERSION)
         logging.info('Loading configuration...')
 
