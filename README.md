@@ -22,6 +22,7 @@ available via API. This ensures unique identification of the datasource. If spec
 Each run the LUID of refreshed datasets is outputed in the job log - you may use it to get the LUID by specifying only name/tag.
 
 
+
 ![Tableau extract](docs/imgs/extract.png)
 
 **IMPORTANT NOTE:** Each datasource must have the required extract refresh set up, e.g. Full refresh, otherwise it won't be recognized and the trigger will fail. If more tasks of a same type are present, only one of them will be triggered.
