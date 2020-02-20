@@ -1,24 +1,33 @@
 # Tableau extract trigger app
 
-Trigger Tableu extract refresh tasks directly from KBC.
+Component allowing to trigger Tableau extract refresh tasks directly from KBC.
 
-### Configuration
+**Table of contents:**  
+  
+[TOC]
 
-- **Username** - REQ Tableau user name. Note that the user must be owner of the dataset or Site admin.
-- **Password** - REQ Tableau password
-- **Endpoint** - REQ Tableu server API endpoint.
+# Configuration
+
+
+- **Username** - [REQ] Tableau user name. Note that the user must be owner of the dataset or Site admin.
+- **Password** - [REQ] Tableau password
+- **Endpoint** - [REQ] Tableu server API endpoint.
 - **Poll mode** - Specify whether the app should wait for all triggered tasks to finish.
-- **Tableau datasources** - Names of datasources with extract refresh tasks to trigger.
-	 - **name** - [REQ] Data source name as found in Tableau.
-	 - **tag** - [OPT] Data source tag as found in Tableau. 
-	 - **Tableu server unique LUID** [OPT] Optional unique datasource identifier i.e. xx12-3324-1323, 
-	 available via API. This ensures unique identification of the datasource. If specified, the `tag` parameter is ignored. 
-	 Each run the LUID of refreshed datasets is outputed in the job log - you may use it to get the LUID by specifying only name/tag.
- 
-**NOTE:** Each datasource **must have** the required extract refresh set up, e.g. `Full refresh`, otherwise it won't be recognized 
-and the trigger will fail.
+- **Tableau datasources** - 
+    - **Data source name** - name of the datasource with extract refresh tasks to trigger. 
+    - **Refresh type** - refresh type of the task
+    - **tag** - [OPT] Data source tag as found in Tableau.
+    - **Tableu server unique LUID** [OPT] Optional unique datasource identifier i.e. xx12-3324-1323,
+available via API. This ensures unique identification of the datasource. If specified, the `tag` parameter is ignored.
+Each run the LUID of refreshed datasets is outputed in the job log - you may use it to get the LUID by specifying only name/tag.
 
-#### LUID setup
+
+![Tableau extract](docs/imgs/extract.png)
+
+**IMPORTANT NOTE:** Each datasource must have the required extract refresh set up, e.g. Full refresh, otherwise it won't be recognized and the trigger will fail. If more tasks of a same type are present, only one of them will be triggered.
+
+
+## LUID setup
 
 If you don't know the LUID you may use unique combination of the `name` and `tag` parameters to identify the datasource. Once you run the configuration 
 for the first time, the appropriate `LUID` will be displayed for each specified data source in the **job log**. Use it to update the `LUID` after first run 
