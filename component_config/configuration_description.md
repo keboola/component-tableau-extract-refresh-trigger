@@ -13,3 +13,5 @@ If you don't know the LUID you may use unique combination of the `name` and `tag
 for the first time, the appropriate `LUID` will be displayed for each specified data source in the **job log**. 
 Look for message like `INFO - Triggering extract for: "TABLEAU_TRIGGER_TEST" with LUID: "067098d0-d160-4117-977c-b18f1051aec7""` 
 in the job log and use the displayed `LUID` to update the configuration after first run.
+
+Additional documentation [available here.](https://bitbucket.org/kds_consulting_team/kds-team.app-tableau-extract-refresh-trigger/src/master/README.md)
