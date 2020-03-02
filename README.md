@@ -26,7 +26,8 @@ with extracts to trigger in this section. Note that there must be appropriate ta
 these sources otherwise the execution will fail
 
 Each data source is uniquely defined by the `LUID`, which is only available via API and there's no way to retrieve it 
-via the UI. For this reason the datasource may be identified by several identifiers:
+via the UI. For this reason the data source may be identified by several identifiers:
+
 ### Data source name
 
 Name of the datasource with extract refresh tasks to trigger as displayed in the UI (see image below). 
@@ -42,10 +43,6 @@ more data sources with a same name.
 
 Optional unique datasource identifier i.e. xx12-3324-1323,
 available via API. This ensures unique identification of the datasource. If specified, the `tag` parameter is ignored.
-
-**NOTE** Each run the LUID of refreshed datasets is outputed in the job log - you may use it to get the LUID by 
-specifying only name/tag. It is recommended to add the LUID once discovered in the job log output to make sure the 
-data source specification is unique.
 
 #### LUID setup
 
