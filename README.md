@@ -8,18 +8,56 @@ Component allowing to trigger Tableau extract refresh tasks directly from KBC.
 
 # Configuration
 
+## Tableau credentials
 
 - **Username** - [REQ] Tableau user name. Note that the user must be owner of the dataset or Site admin.
 - **Password** - [REQ] Tableau password
 - **Endpoint** - [REQ] Tableu server API endpoint.
-- **Poll mode** - Specify whether the app should wait for all triggered tasks to finish.
-- **Tableau datasources** - 
-    - **Data source name** - name of the datasource with extract refresh tasks to trigger. 
-    - **Refresh type** - refresh type of the task
-    - **tag** - [OPT] Data source tag as found in Tableau.
-    - **Tableu server unique LUID** [OPT] Optional unique datasource identifier i.e. xx12-3324-1323,
+
+## Poll mode
+
+Specify whether the app should wait for all triggered tasks to finish. If set to `Yes` the trigger will wait for all triggered jobs to finish, 
+otherwise it will trigger all the jobs and finish successfully right after.
+
+## Tableau datasource specification
+
+The trigger application is executing tasks / schedules that are defined on datasources. Specify a list of datasources 
+with extracts to trigger in this section. Note that there must be appropriate tasks/schedules set for all 
+these sources otherwise the execution will fail
+
+Each data source is uniquely defined by the `LUID`, which is only available via API and there's no way to retrieve it 
+via the UI. For this reason the datasource may be identified by several identifiers:
+### Data source name
+
+Name of the datasource with extract refresh tasks to trigger as displayed in the UI (see image below). 
+**NOTE** This may not be unique. If there's more sources with the same name found the trigger will fail and list of the available,
+sources and its' eventual tags will be displayed in the job log. In such case you will need to add a tag to disambiguate.  
+
+### Data source Tag 
+
+Optional parameter defining a data source tag as found in Tableau. Use this to disambiguate the data source if there's 
+more data sources with a same name.
+
+### Tableu server unique LUID
+
+Optional unique datasource identifier i.e. xx12-3324-1323,
 available via API. This ensures unique identification of the datasource. If specified, the `tag` parameter is ignored.
-Each run the LUID of refreshed datasets is outputed in the job log - you may use it to get the LUID by specifying only name/tag.
+
+**NOTE** Each run the LUID of refreshed datasets is outputed in the job log - you may use it to get the LUID by 
+specifying only name/tag. It is recommended to add the LUID once discovered in the job log output to make sure the 
+data source specification is unique.
+
+#### LUID setup
+
+If you don't know the LUID you may use unique combination of the `name` and `tag` parameters to identify the datasource. Once you run the configuration 
+for the first time, the appropriate `LUID` will be displayed for each specified data source in the **job log**. Use it to update the `LUID` after first run 
+to ensure unique match, since there may be more datasources with the same name and tag potentially in the future but LUID is unique at all times.
+
+
+### Refresh type
+ 
+Refresh type of the task that is specified for the data source. If the specified type of the refresh task is not defined, 
+the job will fail.
 
 
 
@@ -28,11 +66,6 @@ Each run the LUID of refreshed datasets is outputed in the job log - you may use
 **IMPORTANT NOTE:** Each datasource must have the required extract refresh set up, e.g. Full refresh, otherwise it won't be recognized and the trigger will fail. If more tasks of a same type are present, only one of them will be triggered.
 
 
-## LUID setup
-
-If you don't know the LUID you may use unique combination of the `name` and `tag` parameters to identify the datasource. Once you run the configuration 
-for the first time, the appropriate `LUID` will be displayed for each specified data source in the **job log**. Use it to update the `LUID` after first run 
-to ensure unique match, since there may be more datasources with the same name and tag potentially in the future but LUID is unique at all times.
 
 
 ## Development
