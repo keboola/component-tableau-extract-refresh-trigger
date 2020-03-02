@@ -21,12 +21,19 @@ otherwise it will trigger all the jobs and finish successfully right after.
 
 ## Tableau datasource specification
 
-The trigger application is executing tasks / schedules that are defined on datasources. Specify a list of datasources 
+The trigger application is executing tasks / schedules that are defined on data sources. Specify a list of data sources 
 with extracts to trigger in this section. Note that there must be appropriate tasks/schedules set for all 
-these sources otherwise the execution will fail
+these sources otherwise the execution will fail.
 
 Each data source is uniquely defined by the `LUID`, which is only available via API and there's no way to retrieve it 
-via the UI. For this reason the data source may be identified by several identifiers:
+via the UI. For this reason the data source may be identified by several identifiers.
+
+**Steps to set up the data source:**
+
+1. Define data source name and optionally a tag.
+2. Define the refresh task type. If not present create it first in the extract definition in Tableau.
+3. After first run, look for the LUID outputted in the job log.
+4. Set up LUID parameter to fix the unique identification of the data source.
 
 ### Data source name
 
