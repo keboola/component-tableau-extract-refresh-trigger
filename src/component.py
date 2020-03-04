@@ -26,8 +26,7 @@ KEY_DS_NAME = 'name'
 KEY_DS_TYPE = 'type'
 KEY_DATASOURCES = 'datasources'
 
-MANDATORY_PARS = [KEY_API_PASS, KEY_USER_NAME, KEY_DATASOURCES]
-MANDATORY_IMAGE_PARS = []
+MANDATORY_PARS = [KEY_API_PASS, KEY_USER_NAME, KEY_DATASOURCES, KEY_ENDPOINT]
 
 APP_VERSION = '0.0.1'
 
@@ -55,8 +54,7 @@ class Component(KBCEnvHandler):
             logging.getLogger('tableau.endpoint.datasources').setLevel(logging.ERROR)
 
         try:
-            self.validate_config()
-            self.validate_image_parameters(MANDATORY_IMAGE_PARS)
+            self.validate_config(MANDATORY_PARS)
         except ValueError as e:
             logging.exception(e)
             exit(1)
