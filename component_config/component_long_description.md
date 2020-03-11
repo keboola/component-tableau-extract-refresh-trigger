@@ -1,1 +1,1 @@
-The component allows triggering Tableu extract refresh tasks. 
+Allows triggering Tableau extract refresh tasks based on type (`Incremental`, `Full`). Supports `poll mode` to control whether to wait on the result or just trigger and pass.
