@@ -6,7 +6,8 @@
     "#password",
     "endpoint",
     "datasources",
-    "poll_mode"
+    "poll_mode",
+    "site_id"
   ],
   "properties": {
     "user": {
@@ -24,6 +25,11 @@
       "type": "string",
       "title": "Tableau server API endpoint",
       "propertyOrder": 250
+    },
+    "site_id": {
+      "type": "string",
+      "title": "Tableau Site ID. Use with online version",
+      "propertyOrder": 255
     },
     "poll_mode": {
       "type": "number",
