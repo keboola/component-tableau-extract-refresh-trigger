@@ -13,6 +13,7 @@ Component allowing to trigger Tableau extract refresh tasks directly from KBC.
 - **Username** - [REQ] Tableau user name. Note that the user must be owner of the dataset or Site admin.
 - **Password** - [REQ] Tableau password
 - **Endpoint** - [REQ] Tableu server API endpoint.
+- **Site ID** - [REQ] Tableu Site ID. Optional - for Tableu online.
 
 ## Poll mode
 

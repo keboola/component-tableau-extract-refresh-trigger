@@ -25,7 +25,7 @@ KEY_POLL_MODE = 'poll_mode'
 KEY_DS_NAME = 'name'
 KEY_DS_TYPE = 'type'
 KEY_DATASOURCES = 'datasources'
-
+KEY_SITE_ID = 'site_id'
 MANDATORY_PARS = [KEY_API_PASS, KEY_USER_NAME, KEY_DATASOURCES, KEY_ENDPOINT]
 
 APP_VERSION = '0.0.1'
@@ -54,13 +54,14 @@ class Component(KBCEnvHandler):
             logging.getLogger('tableau.endpoint.datasources').setLevel(logging.ERROR)
 
         try:
-            self.validate_config(MANDATORY_PARS)
+            self.validate_config()
         except ValueError as e:
             logging.exception(e)
             exit(1)
 
         # intialize instance parameteres
-        self.auth = tsc.TableauAuth(self.cfg_params[KEY_USER_NAME], self.cfg_params[KEY_API_PASS])
+        self.auth = tsc.TableauAuth(self.cfg_params[KEY_USER_NAME], self.cfg_params[KEY_API_PASS],
+                                    site_id=self.cfg_params.get(KEY_SITE_ID))
         self.server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=True)
         self.server_info = self.server.server_info.get()
         logging.info(F"Using server API version: {self.server_info.rest_api_version}")
