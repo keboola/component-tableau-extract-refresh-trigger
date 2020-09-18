@@ -61,7 +61,7 @@ class Component(KBCEnvHandler):
 
         # intialize instance parameteres
         self.auth = tsc.TableauAuth(self.cfg_params[KEY_USER_NAME], self.cfg_params[KEY_API_PASS],
-                                    site_id=self.cfg_params.get(KEY_SITE_ID))
+                                    site_id=self.cfg_params.get(KEY_SITE_ID, ''))
         self.server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=True)
         self.server_info = self.server.server_info.get()
         logging.info(F"Using server API version: {self.server_info.rest_api_version}")
