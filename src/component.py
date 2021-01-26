@@ -2,14 +2,19 @@
 Template Component main class.
 
 '''
+import traceback
 
+import backoff
+import functools
 import logging
 import os
+import requests
 import sys
-
 import tableauserverclient as tsc
+import tableauserverclient.server.endpoint.exceptions as tsc_exceptions
 import xmltodict
 from kbc.env_handler import KBCEnvHandler
+from pathlib import Path
 
 # global constants
 
@@ -30,11 +35,40 @@ MANDATORY_PARS = [KEY_API_PASS, KEY_USER_NAME, KEY_DATASOURCES, KEY_ENDPOINT]
 
 APP_VERSION = '0.0.1'
 
+MAX_RETRIES = 6
+
+
+class TableauClientException(Exception):
+    pass
+
+
+def on_giveup_raise(giveup):
+    orig_ex = sys.exc_info()[1]
+    raise TableauClientException(f'The client failed after 6 retries {str(orig_ex)}') from orig_ex
+
+
+def api_error_handling(fnc):
+    @backoff.on_exception(backoff.expo,
+                          (requests.exceptions.ConnectionError, tsc_exceptions.InternalServerError,
+                           AttributeError),
+                          on_giveup=on_giveup_raise,
+                          max_tries=MAX_RETRIES)
+    @functools.wraps(fnc)
+    def wrapper(*args, **kwargs):
+        return fnc(*args, **kwargs)
+
+    return wrapper
+
 
 class Component(KBCEnvHandler):
 
     def __init__(self, debug=False):
-        KBCEnvHandler.__init__(self, MANDATORY_PARS, )
+        # for easier local project setup
+        default_data_dir = Path(__file__).resolve().parent.parent.joinpath('data').as_posix() \
+            if not os.environ.get('KBC_DATADIR') else None
+
+        KBCEnvHandler.__init__(self, MANDATORY_PARS, log_level=logging.DEBUG if debug else logging.INFO,
+                               data_path=default_data_dir)
         # override debug from config
         if self.cfg_params.get('debug'):
             debug = True
@@ -62,9 +96,20 @@ class Component(KBCEnvHandler):
         # intialize instance parameteres
         self.auth = tsc.TableauAuth(self.cfg_params[KEY_USER_NAME], self.cfg_params[KEY_API_PASS],
                                     site_id=self.cfg_params.get(KEY_SITE_ID, ''))
-        self.server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=True)
-        self.server_info = self.server.server_info.get()
+        try:
+            self.server, self.server_info = self._init_server_client()
+        except TableauClientException as ex:
+            logging.error(f'Connection to server failed! Verify the server accessibility. {ex}',
+                          extra={'stack_trace': traceback.format_exc()})
+            exit(1)
+
         logging.info(F"Using server API version: {self.server_info.rest_api_version}")
+
+    @api_error_handling
+    def _init_server_client(self):
+        server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=True)
+        server_info = self.server.server_info.get()
+        return server, server_info
 
     def run(self):
         '''
@@ -108,6 +153,7 @@ class Component(KBCEnvHandler):
 
         logging.info('Trigger finished successfully!')
 
+    @api_error_handling
     def _run_task(self, task):
         response = self.server.tasks.run(task)
         root = xmltodict.parse(response)
@@ -115,6 +161,7 @@ class Component(KBCEnvHandler):
         job_id = root['tsResponse']['job']['@id']
         return job_id
 
+    @api_error_handling
     def get_all_datasource_refresh_tasks(self):
         # filter only datasource refresh tasks
         tasks = list(tsc.Pager(self.server.tasks))
@@ -130,6 +177,7 @@ class Component(KBCEnvHandler):
             raise ValueError(F'Some datasets do not exist! {inv_names}')
         return conf_ds_names
 
+    @api_error_handling
     def get_all_ds_for_tasks(self, tasks, all_ds):
         ds_tasks = dict()
         ds_ids = dict()
@@ -155,6 +203,7 @@ class Component(KBCEnvHandler):
             raise ValueError(F'Some datasets do not have the required refresh type task: {inv_ds}. '
                              F'Please create the extract refresh of that type first.')
 
+    @api_error_handling
     def _wait_for_finish(self, executed_jobs):
         remaining_jobs = executed_jobs.copy()
         failed_jobs = dict()

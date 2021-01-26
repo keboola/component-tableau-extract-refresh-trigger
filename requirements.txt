@@ -1,5 +1,6 @@
-https://bitbucket.org/kds_consulting_team/keboola-python-util-lib/get/0.2.5.zip#egg=kbc
+https://bitbucket.org/kds_consulting_team/keboola-python-util-lib/get/0.5.1.zip#egg=kbc
 mock
+backoff
 freezegun
-tableauserverclient
+tableauserverclient==0.14.1
 xmltodict
