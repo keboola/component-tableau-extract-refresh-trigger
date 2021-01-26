@@ -133,7 +133,7 @@ class Component(KBCEnvHandler):
         session = self._build_retry_session(backoff_factor=DEFAULT_BACKOFF,
                                             status_forcelist=STATUS_FORCELIST)
         server = RetryServer(self.cfg_params[KEY_ENDPOINT], use_server_ver=True, custom_session=session)
-        server_info = self.server.server_info.get()
+        server_info = server.server_info.get()
 
         return server, server_info
 
