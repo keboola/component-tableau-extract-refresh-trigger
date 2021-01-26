@@ -15,6 +15,10 @@ import tableauserverclient.server.endpoint.exceptions as tsc_exceptions
 import xmltodict
 from kbc.env_handler import KBCEnvHandler
 from pathlib import Path
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
+
+from custom_tableauserverclient.server_retry import RetryServer
 
 # global constants
 
@@ -34,8 +38,10 @@ KEY_SITE_ID = 'site_id'
 MANDATORY_PARS = [KEY_API_PASS, KEY_USER_NAME, KEY_DATASOURCES, KEY_ENDPOINT]
 
 APP_VERSION = '0.0.1'
-
+STATUS_FORCELIST = (500, 502, 504)
+DEFAULT_BACKOFF = 0.3
 MAX_RETRIES = 6
+MAX_RETRIES_WRAPPER = 5
 
 
 class TableauClientException(Exception):
@@ -52,7 +58,7 @@ def api_error_handling(fnc):
                           (requests.exceptions.ConnectionError, tsc_exceptions.InternalServerError,
                            AttributeError),
                           on_giveup=on_giveup_raise,
-                          max_tries=MAX_RETRIES)
+                          max_tries=MAX_RETRIES_WRAPPER)
     @functools.wraps(fnc)
     def wrapper(*args, **kwargs):
         return fnc(*args, **kwargs)
@@ -98,17 +104,37 @@ class Component(KBCEnvHandler):
                                     site_id=self.cfg_params.get(KEY_SITE_ID, ''))
         try:
             self.server, self.server_info = self._init_server_client()
-        except TableauClientException as ex:
+        except Exception as ex:
             logging.error(f'Connection to server failed! Verify the server accessibility. {ex}',
                           extra={'stack_trace': traceback.format_exc()})
             exit(1)
 
         logging.info(F"Using server API version: {self.server_info.rest_api_version}")
 
+    def _build_retry_session(self, backoff_factor=0.3,
+                             status_forcelist=(500, 502, 504)):
+        session = requests.Session()
+        retry = Retry(
+            total=MAX_RETRIES,
+            read=MAX_RETRIES,
+            connect=MAX_RETRIES,
+            backoff_factor=backoff_factor,
+            status_forcelist=status_forcelist,
+            allowed_methods=('GET', 'POST', 'PATCH', 'UPDATE')
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        return session
+
     @api_error_handling
     def _init_server_client(self):
-        server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=True)
+        # override requests session to apply retry policy
+        session = self._build_retry_session(backoff_factor=DEFAULT_BACKOFF,
+                                            status_forcelist=STATUS_FORCELIST)
+        server = RetryServer(self.cfg_params[KEY_ENDPOINT], use_server_ver=True, custom_session=session)
         server_info = self.server.server_info.get()
+
         return server, server_info
 
     def run(self):

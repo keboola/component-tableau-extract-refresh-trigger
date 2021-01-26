@@ -14,7 +14,7 @@ from component import Component
 class TestComponent(unittest.TestCase):
     def setUp(self):
         path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                            'data')
+                            'data_test')
         os.environ["KBC_DATADIR"] = path
 
     # set global time to 2010-10-10 - affects functions like datetime.now()
