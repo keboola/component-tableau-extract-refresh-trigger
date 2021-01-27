@@ -15,7 +15,7 @@ import tableauserverclient as tsc
 import tableauserverclient.server.endpoint.exceptions as tsc_exceptions
 import xmltodict
 from kbc.env_handler import KBCEnvHandler
-from requests.adapters import HTTPAdapter
+from requests.adapters import HTTPAdapter, RetryError
 from urllib3.util import Retry
 
 from custom_tableauserverclient.server_retry import RetryServer
@@ -56,7 +56,7 @@ def on_giveup_raise(giveup):
 def api_error_handling(fnc):
     @backoff.on_exception(backoff.expo,
                           (requests.exceptions.ConnectionError, tsc_exceptions.InternalServerError,
-                           AttributeError),
+                           AttributeError, RetryError),
                           on_giveup=on_giveup_raise,
                           max_tries=MAX_RETRIES_WRAPPER)
     @functools.wraps(fnc)
