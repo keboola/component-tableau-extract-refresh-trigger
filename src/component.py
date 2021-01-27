@@ -2,19 +2,19 @@
 Template Component main class.
 
 '''
-import traceback
-
-import backoff
 import functools
 import logging
 import os
-import requests
 import sys
+import traceback
+from pathlib import Path
+
+import backoff
+import requests
 import tableauserverclient as tsc
 import tableauserverclient.server.endpoint.exceptions as tsc_exceptions
 import xmltodict
 from kbc.env_handler import KBCEnvHandler
-from pathlib import Path
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
@@ -40,7 +40,7 @@ MANDATORY_PARS = [KEY_API_PASS, KEY_USER_NAME, KEY_DATASOURCES, KEY_ENDPOINT]
 APP_VERSION = '0.0.1'
 STATUS_FORCELIST = (500, 502, 504)
 DEFAULT_BACKOFF = 0.3
-MAX_RETRIES = 6
+MAX_RETRIES = 10
 MAX_RETRIES_WRAPPER = 5
 
 
@@ -50,7 +50,7 @@ class TableauClientException(Exception):
 
 def on_giveup_raise(giveup):
     orig_ex = sys.exc_info()[1]
-    raise TableauClientException(f'The client failed after 6 retries {str(orig_ex)}') from orig_ex
+    raise TableauClientException(f'The client failed after {MAX_RETRIES_WRAPPER} retries {str(orig_ex)}') from orig_ex
 
 
 def api_error_handling(fnc):
