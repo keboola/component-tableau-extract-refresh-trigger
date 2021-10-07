@@ -13,7 +13,10 @@ Component allowing to trigger Tableau extract refresh tasks directly from KBC.
 - **Username** - [REQ] Tableau user name. Note that the user must be owner of the dataset or Site admin.
 - **Password** - [REQ] Tableau password
 - **Endpoint** - [REQ] Tableu server API endpoint.
-- **Site ID** - [REQ] Tableu Site ID. Optional - for Tableu online.
+- **Site ID** - [REQ] Tableu Site ID. Optional - for Tableau online. You can find the ID in the URL. 
+E.g. **`SITE_ID`** in `https://dub01.online.tableau.com/#/site/SITE_ID/home`
+
+
 
 ## Poll mode
 
@@ -23,8 +26,12 @@ otherwise it will trigger all the jobs and finish successfully right after.
 ## Tableau datasource specification
 
 The trigger application is executing tasks / schedules that are defined on data sources. Specify a list of data sources 
-with extracts to trigger in this section. Note that there must be appropriate tasks/schedules set for all 
-these sources otherwise the execution will fail.
+with extracts to trigger in this section. 
+
+**IMPORTANT NOTE** 
+
+- there must be appropriate tasks/schedules set for all these sources otherwise the execution will fail.
+- The datasource in Tableau Online must be published.
 
 Each data source is uniquely defined by the `LUID`, which is only available via API and there's no way to retrieve it 
 via the UI. For this reason the data source may be identified by several identifiers.
