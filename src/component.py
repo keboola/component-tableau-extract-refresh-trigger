@@ -6,6 +6,7 @@ Template Component main class.
 import logging
 import os
 import sys
+import xml.etree.ElementTree as ET
 
 import tableauserverclient as tsc
 import xmltodict
@@ -62,16 +63,33 @@ class Component(KBCEnvHandler):
         # intialize instance parameteres
         self.auth = tsc.TableauAuth(self.cfg_params[KEY_USER_NAME], self.cfg_params[KEY_API_PASS],
                                     site_id=self.cfg_params.get(KEY_SITE_ID, ''))
+        self.signin_req(self.auth)
         self.server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=True)
         self.server_info = self.server.server_info.get()
         logging.info(F"Using server API version: {self.server_info.rest_api_version}")
+
+    def signin_req(self, auth_item):
+        xml_request = ET.Element('tsRequest')
+
+        credentials_element = ET.SubElement(xml_request, 'credentials')
+        for attribute_name, attribute_value in auth_item.credentials.items():
+            credentials_element.attrib[attribute_name] = attribute_value
+
+        site_element = ET.SubElement(credentials_element, 'site')
+        site_element.attrib['contentUrl'] = auth_item.site_id
+
+        if auth_item.user_id_to_impersonate:
+            user_element = ET.SubElement(credentials_element, 'user')
+            user_element.attrib['id'] = auth_item.user_id_to_impersonate
+        logging.info(f'{xml_request.tag}, {xml_request.tail}, {xml_request.text}, {xml_request.attrib}')
+        return ET.tostring(xml_request)
 
     def run(self):
         '''
         Main execution code
         '''
         params = self.cfg_params  # noqa
-
+        logging.info(self.auth)
         with self.server.auth.sign_in(self.auth):
             executed_jobs = dict()
 
