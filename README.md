@@ -12,7 +12,7 @@ Component allowing to trigger Tableau extract refresh tasks directly from KBC.
 
 - **Username** - [REQ] Tableau user name. Note that the user must be owner of the dataset or Site admin.
 - **Password** - [REQ] Tableau password
-- **Endpoint** - [REQ] Tableu server API endpoint.
+- **Endpoint** - [REQ] Tableu server API endpoint. Just the domain from the URL, e.g. `https://dub01.online.tableau.com`
 - **Site ID** - [REQ] Tableu Site ID. Optional - for Tableau online. You can find the ID in the URL. 
 E.g. **`SITE_ID`** in `https://dub01.online.tableau.com/#/site/SITE_ID/home`
 
@@ -77,9 +77,6 @@ the job will fail.
 
 **IMPORTANT NOTE:** Each datasource must have the required extract refresh set up, e.g. Full refresh, otherwise it won't be recognized and the trigger will fail. If more tasks of a same type are present, only one of them will be triggered.
 
-
-
-
 ## Development
 
 If required, change local data folder (the `CUSTOM_FOLDER` placeholder) path to your custom path in the docker-compose file:
@@ -90,7 +87,27 @@ If required, change local data folder (the `CUSTOM_FOLDER` placeholder) path to 
       - ./CUSTOM_FOLDER:/data
 ```
 
-**NOTE**: For generation of the config.json using a friendly GUI form use [this link](http://jeremydorn.com/json-editor/?schema=N4IgLgngDgpiBcID2AjAVjAxmEAacAlmADZyIDCSAdgGYEDmArgE4CGYB1eIzMAjowK8AJggDaIRgGcYzbgGIorKVIDuSZqPwwqwqEgJUc+Ye2VIWmGFO77ixAPoBbJMLgBdfFGZJYzDtYIoNKyQeDQZCBSYMyG9NwcJJEAKqwopKyMAAQhzFlUrE5wXj5+kADymqHwAIwADHUAvviKymoaovCgkLAIUTFxCUSkfanpMJk5MnlKKuqa3DQaTux9s+0LJb6yFVVy8ABMDc0gOnoGRmE9kdGxVPH4iSOIYxnZ0wBuslkAggAKAEksmd9IZjCBvNt/BBKm59gcAKxNLxIezOVxkboRPpURhOFChR7DSJ/VHELIuNzcNxSTCxKAcLiIAE0LIyMBZMBILIAAwAmtYeZyABYwTmxej0b6qAj2LKqVhELJLPKsOUDSWyGDCLJoVBSTncuhUAhSYW4LJIMCi5gymRZJUy9USqWq9Wi3X6rKsXTKwym4VsxiYKwqGiMewQLIS4Uc1g0MCyAB0tlKOxhewQABYEQjtLinOI6rgap4QG4aJliDh4MXkAzOFQbF1TgWHE9AvAJAA5JDcAU2dyNE6mMDmSydrG9RCsZhsCBDJKjNJvLKj8fMUPU6x0ggNpkgAAypo5SFZ66kFk31nlREDMAAHjFWNgDVzxQxXUmsr3EyL2CKWoUtIHIEt6UCQt4BDsGKY5SAA1lIAD0tKisIEY3uyyoaN67rWGKl4TgaVo2nasEeo+WCMIyVC3nKlaytwRAwE4zagCqKw1iA9CxFo4TTsg6BYOCHZ9AAok+bDYNwvACEI2riCABRFAkrAPCAxCCHx1wgGWkE7AQk5KYUmL8TcAz3IuzwgAAImYbJXlY+QmSmJg7vSNF9AAPCgAB8ABK/CCCIXlIX5WR2WODkTs5RTegaSyML6hhZK8EyMK5EJptCsLVPUxyPGpVzYogtyDESS6IJFrDRdenJqZlNK7vuVB9OULVqmu9mEXVY70PF2FJTqKVpZkmX6TlmaHA0yIaVpxUCWVlkVdZaXvLIXx5ElBACGKh4AKoAjZlqstaYoXo5YoABTKNGMDePhRjalkHzQb8gIAJTbrSHmNm1HXkttu1dXBl0Om4RgEHQ3wEEmMDfg+D41AcAC0ADMaMHFmKM1JjaMWqwHyKsQK5iq9NX/AC37JMKprAk2LA3kDjBigQEMcHQmDsI2J2ASDG5WN+LJsrAmBQ4ZwgWmdWQAOR9TLWRKGwRSJnkdMMFQGjauN2W7HCCBozNJw6S2Oh4opgU0LwZoSc+2CpAh3AAlQdIsToYC21JYAO/Bun4L4NFsa2eLtsSzYSAAYhGxBOy7vBFEYaq6cbJX9Hc6miYglvW4GOluT9e6eYgnsvhyvBW9YufYm5lYRlxUf2KmUJ69UWZG8OHdAAA=&value=N4IgrgzgpgTiBcIQBoQGIAOBDCEDuA9jACYJKpQB2xGBAlpQC5koi0A27A+gLYHFQEABlTEsjHATAwAxlAgIA2qEpYegxDlKoJAczJbW7MHVKJWjAJ4YNIAEpQAZjHkALAKIAPRjCwzGACo4ANYgAL4AumFAAA==&theme=bootstrap2&iconlib=fontawesome4&object_layout=normal&show_errors=interaction)
+### Example JSON configuration
+
+```json
+{
+  "parameters": {
+    "#password": "XXXXX",
+    "user": "example@keboola.com",
+    "site_id": "testsite",
+    "endpoint":"https://dub01.online.tableau.com/",
+    "datasources": [
+      {"name":"FullTestExtract", "type": "RefreshExtractTask", "luid": "ecf7d5e0-c493-4e03-8d55-106f9f46af3b"},
+      {"name":"IncrementalTestExtract", "type": "IncrementExtractTask", "luid": "ecf7d5e0-a345-4e03-8d55-106f9f46af1g"}
+    ],
+    "poll_mode": 1,
+    "debug": false
+  },
+  "image_parameters": {}
+}
+```
+
+**NOTE**: For generation of the config.json using a friendly GUI form use [this link](https://json-editor.github.io/json-editor/?data=N4Ig9gDgLglmB2BnEAuUMDGCA2MBGqIAZglAIYDuApomALZUCsIANOHgFZUZQD62ZAJ5gArlELwwAJzplsrEIgwALKrNSgogiFUJhO3cW1hRsulCADCCIjADmIqWVgIFUqgEcRMdwBNUANogIohUUgoAxBBkiIgU0v5sVPC+EGAw8EYgvs4xolIYNApp2Ni8dGC+umyIMFBUvDD+ALpsEFKQYbBFaMGh4b1aOoSIUFIZdgomZoQAKmR4ZmQiAAQhYSvwZAzFHTpSWgDyUlUDAIwADBcAvmxRMXEJGiBD5opjE1N1Mxbzi1TLNb9FbRWLxE4KEgyZyEUGPCFtPZdQTHU6oABMV1uIGSqXSmWerxGH3gk2M3zefyWq36ADcNgBBAAKAEkVri0hkoCsAKoAJQAMgoqkpxtA4PBCAApELcqCqFa+ehkDIgsgHFZEDp0Fbyqi8wUsdkAOjsxpWyigUAgiBQAHo7b4RHgLmdjTgMlRjeR/stjVg6LtOgcUScwhjGDcanUGk1Cdo3qNxqSvqZKQtqSsAMoxlYsgAi5p5oRWFDqyhWHvg+vpUlqrjYIowYpckt+Cpz9Tz+ZWGDI8BWeH1JBEKRWqr1BoFKAtVpt9sdztd7vguGr3ozAJE/vodoidtq9TtWZZswAorwC3blPRqiB2sGjmGBujGIxsSUyhUqvHhhZ4CIdBDuE5JpoQTJgKUKzfneTYthKhAskQKyhHKYArAABgAmjQGG6gqHx2HYGxllBFAqtyUIrHI2C6uMRFhFQvgrBw+iILq6G2PAMCIMoRpgHqUhliWdSljAUGEcRUjURJCqsXg7H9sxXE8RWiAiBghSxEQIilIIKz0Za1FEPUUjGkG+xPmiKAACxvkkAGBigAQXCwZytNkVBEMs2DiCgrngOKCDIL0ySAbw0w9EEAByYAKDhyDNNc2I5OQtCOFpv5vOqTiCKmPwgFSW6Krk6UFEUjY0M2MBBW2IACjx3JgMhqV5BlNBifK7IAB5jGQPDsVA6GSWE5qxV28rOPhjHQbKg76mQEAPu0MDOPqaUANaIAeKhMbpHWoZq0gybReolmVWmVoJwnrQqVDddwYgSmJUHeeJCgxnQIWgFCsh+SAdjjIkLwJnoBg8Plbxnr1TgQ2w7heD4TGBCAWw7MYZBkiA2DeMDRIectXQwD0oBo+YmigxYSafKBBX5rkKH5IUmzbF6wpVfBrgWAAPHgAB8fKeN4fjc3a/MrPT5CM+1LMMNR7EjmOqpFX6FnIqi4YoJcWIY5MgyU+8yZY5FhCS2Q0vlbqmPmZVoo1a2hCHLVcglVLF3rZj8tHaOzHK5uquIo+obWZiOvY7jWXEkbkNzJuNJhLWazcV4+oCjyBaVshk6te7KwABQxAZVDtDQyT1MxtKrSszIsgAlOzdu1Y7zu0aOMAp67bWW00ZcwLYGwwMaXorN13VnOiAC0ADMU/ojZE9nLPU9GmQtIqgI/wrJX5s1+aszKDx7JII4HVtx3PeZH3mDOM9zXTZ37vmkhKE6BgV9MUak4AOTkHYX9qk4BgplxzsXsJIPw5oABi4lToH1AQOMgJkNiTlsHWbk91Hqtj3gqNOGdSK0SHCCZM5dxwDknAGNI1ZMgsX0CsbAYAzRqxDBrAYU8rhRhBn+UAYUnJBEFlqGgyhoZ9R4PMRAG0FAsngM2NQZdhGwygGIiRHlICtm+jiRyEUKQhSCJA3S8g2BSJkQwTIcgQBJWMAbamKZaZvH4e4XiupQa22qk3Cw8j+rcncAIxxRJKreV0v9PRpQmFWU1jZdhyUonYl4mACgvAwgdDrIQLkYRPEIWMKoHYFg8BgAEkmRaNkQDJSAA)
 
 Clone this repository, init the workspace and run the component with following command:
 

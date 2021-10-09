@@ -23,12 +23,14 @@
     },
     "endpoint": {
       "type": "string",
-      "title": "Tableau server API endpoint",
+      "title": "Tableau server API endpoint URL",
+      "description": "Just the domain part from the URL, e.g. https://dub01.online.tableau.com",
       "propertyOrder": 250
     },
     "site_id": {
       "type": "string",
       "title": "Tableau Site ID. Use with online version",
+      "description": "The Site ID can be found in the URL: https://dub01.online.tableau.com/#/site/SITE_ID/home",
       "propertyOrder": 255
     },
     "poll_mode": {
@@ -78,7 +80,7 @@
           "luid": {
             "type": "string",
             "title": "Tableu server unique LUID of the datasource (as represented via API)",
-            "description": "Optional unique datasource identifier i.e. xx12-3324-1323, available via API. This ensures unique identification of the datasource. If specified, the 'tag' parameter is ignored.",
+            "description": "Optional unique datasource identifier i.e. xx12-3324-1323, available via API. This ensures unique identification of the datasource. If specified, the 'tag' parameter is ignored. Fill this in after the first execution. The LUID will be printed in the component job log.",
             "propertyOrder": 3000
           },
           "type": {
