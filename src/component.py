@@ -26,6 +26,8 @@ KEY_DS_NAME = 'name'
 KEY_DS_TYPE = 'type'
 KEY_DATASOURCES = 'datasources'
 KEY_SITE_ID = 'site_id'
+
+KEY_AUTH_TYPE = 'authentication_type'
 MANDATORY_PARS = [KEY_API_PASS, KEY_USER_NAME, KEY_DATASOURCES, KEY_ENDPOINT]
 
 APP_VERSION = '0.0.1'
@@ -61,8 +63,15 @@ class Component(KBCEnvHandler):
 
         site_id = self.cfg_params.get(KEY_SITE_ID) or ''
         # intialize instance parameteres
-        self.auth = tsc.TableauAuth(self.cfg_params[KEY_USER_NAME], self.cfg_params[KEY_API_PASS],
-                                    site_id=site_id)
+
+        if self.cfg_params.get(KEY_AUTH_TYPE, 'user/password') == 'user/password':
+            self.auth = tsc.TableauAuth(self.cfg_params[KEY_USER_NAME], self.cfg_params[KEY_API_PASS],
+                                        site_id=site_id)
+        elif self.cfg_params.get(KEY_AUTH_TYPE) == "Personal Access Token":
+            self.auth = tsc.PersonalAccessTokenAuth(token_name=self.cfg_params['token_name'],
+                                                    personal_access_token=self.cfg_params['#token_secret'],
+                                                    site_id=site_id)
+
         self.server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=True)
         self.server_info = self.server.server_info.get()
         logging.info(F"Using server API version: {self.server_info.rest_api_version}")
