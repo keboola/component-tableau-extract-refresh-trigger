@@ -24,7 +24,7 @@
     },
     "user": {
       "type": "string",
-      "title": "Tableau User Name / PAT Token Name",
+      "title": "Tableau User Name",
       "propertyOrder": 100,
       "options": {
         "dependencies": {
@@ -37,7 +37,7 @@
     },
     "#password": {
       "type": "string",
-      "title": "Tableau User Password / PAT Token Secret",
+      "title": "Tableau User Password",
       "format": "password",
       "propertyOrder": 200,
       "options": {
