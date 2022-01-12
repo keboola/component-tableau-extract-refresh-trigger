@@ -7,19 +7,72 @@
     "endpoint",
     "datasources",
     "poll_mode",
-    "site_id"
+    "site_id",
+    "authentication_type"
   ],
   "properties": {
+    "authentication_type": {
+      "type": "string",
+      "title": "Authentication Type",
+      "description": "<b style='color:red'>NOTE: User/Password authentication will be deprecated starting 02/2022.</b>",
+      "enum": [
+        "Personal Access Token",
+        "user/password"
+      ],
+      "default": "user/password",
+      "propertyOrder": 10
+    },
     "user": {
       "type": "string",
-      "title": "Tableau user name",
-      "propertyOrder": 100
+      "title": "Tableau User Name / PAT Token Name",
+      "propertyOrder": 100,
+      "options": {
+        "dependencies": {
+          "authentication_type": [
+            "user/password",
+            null
+          ]
+        }
+      }
     },
     "#password": {
       "type": "string",
-      "title": "Tableau user password",
+      "title": "Tableau User Password / PAT Token Secret",
       "format": "password",
-      "propertyOrder": 200
+      "propertyOrder": 200,
+      "options": {
+        "dependencies": {
+          "authentication_type": [
+            "user/password",
+            null
+          ]
+        }
+      }
+    },
+    "token_name": {
+      "type": "string",
+      "title": "PAT Token Name",
+      "propertyOrder": 100,
+      "options": {
+        "dependencies": {
+          "authentication_type": [
+            "Personal Access Token"
+          ]
+        }
+      }
+    },
+    "#token_secret": {
+      "type": "string",
+      "title": "PAT Token Secret",
+      "format": "password",
+      "propertyOrder": 200,
+      "options": {
+        "dependencies": {
+          "authentication_type": [
+            "Personal Access Token"
+          ]
+        }
+      }
     },
     "endpoint": {
       "type": "string",

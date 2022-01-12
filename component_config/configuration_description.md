@@ -1,3 +1,5 @@
+Create a [PAT token](https://help.tableau.com/current/pro/desktop/en-us/useracct.htm#create-and-revoke-personal-access-tokens) to authenticate. 
+
 Specify datasource with extract tasks to be refreshed.
 
 **NOTE**: Only extract with tasks/schedules defined will be refreshed.

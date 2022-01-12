@@ -10,12 +10,15 @@ Component allowing to trigger Tableau extract refresh tasks directly from KBC.
 
 ## Tableau credentials
 
-- **Username** - [REQ] Tableau user name. Note that the user must be owner of the dataset or Site admin.
-- **Password** - [REQ] Tableau password
+- **Token Name** - [REQ] Tableau user's PAT name. Note that the user must be owner of the dataset or Site admin.
+- **Token Secret** - [REQ] Tableau user's PAT Secret
 - **Endpoint** - [REQ] Tableu server API endpoint. Just the domain from the URL, e.g. `https://dub01.online.tableau.com`
 - **Site ID** - [REQ] Tableu Site ID. Optional - for Tableau online. You can find the ID in the URL. 
 E.g. **`SITE_ID`** in `https://dub01.online.tableau.com/#/site/SITE_ID/home`
 
+### PAT
+
+Since 02/2022 the PATs are required as a method of authentication. Follow [this guide](https://help.tableau.com/current/pro/desktop/en-us/useracct.htm#create-and-revoke-personal-access-tokens) to set it up 
 
 
 ## Poll mode
