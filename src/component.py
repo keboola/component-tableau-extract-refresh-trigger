@@ -13,7 +13,6 @@ from client import TableauServerClient, DatasourceRefreshSpec
 # configuration variables
 KEY_ENDPOINT = "endpoint"
 KEY_POLL_MODE = "poll_mode"
-
 KEY_DATASOURCES = "datasources"
 KEY_SITE_ID = "site_id"
 KEY_TOKEN_NAME = "token_name"
@@ -21,7 +20,6 @@ KEY_TOKEN_SECRET = "#token_secret"
 
 KEY_AUTH_TYPE = "authentication_type"
 MANDATORY_PARS = [
-    KEY_AUTH_TYPE,
     KEY_TOKEN_NAME,
     KEY_TOKEN_SECRET,
     KEY_DATASOURCES,
@@ -37,9 +35,9 @@ class TableauExtractRefreshTrigger(ComponentBase):
 
         params: dict = self.configuration.parameters  # noqa
 
-        authentication_type: str = params.get(KEY_AUTH_TYPE, "user/password")
+        authentication_type: str = params.get(KEY_AUTH_TYPE, "Personal Access Token")
         if authentication_type != "Personal Access Token":
-            raise UserException("Personal Access Token must be used.")
+            raise UserException("Personal Access Token authentication must be used.")
 
         self.validate_configuration_parameters(MANDATORY_PARS)
         # override debug from config

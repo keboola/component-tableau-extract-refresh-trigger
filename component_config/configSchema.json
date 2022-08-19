@@ -2,24 +2,23 @@
   "type": "object",
   "title": "Configuration",
   "required": [
-    "user",
-    "#password",
+    "token_name",
+    "#token_secret",
     "endpoint",
     "datasources",
     "poll_mode",
-    "site_id",
-    "authentication_type"
+    "site_id"
   ],
   "properties": {
     "authentication_type": {
       "type": "string",
       "title": "Authentication Type",
-      "description": "<b style='color:red'>NOTE: User/Password authentication will be deprecated starting 02/2022.</b>",
+      "description": "<b style='color:red'>NOTE: User/Password authentication no longer supported.</b>",
       "enum": [
         "Personal Access Token",
         "user/password"
       ],
-      "default": "user/password",
+      "default": "Personal Access Token",
       "propertyOrder": 10
     },
     "user": {
