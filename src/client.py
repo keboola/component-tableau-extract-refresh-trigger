@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from math import sqrt
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import logging
 
 from retry import retry
@@ -38,12 +38,12 @@ class DatasourceRefreshTaskType(Enum):
 
     @classmethod
     def from_string(cls, value: str) -> Optional["DatasourceRefreshTaskType"]:
-        for item in cls:
-            if item.value == value:
-                return item
-        if value == "RefreshExtractTask":
+        if value in (TaskItem.Type.ExtractRefresh, "RefreshExtractTask"):
             return cls.Full
-        raise ValueError(f"{value} is not a valid DatasourceRefreshTaskType")
+        elif value == "IncrementExtractTask":
+            return cls.Incremental
+        else:
+            raise ValueError(f"{value} is not a valid DatasourceRefreshTaskType")
 
 
 @dataclass(slots=True, frozen=True)
@@ -66,7 +66,7 @@ class DatasourceRefreshSpec:
         return {
             KEY_NAME: self.name,
             KEY_TAG: self.tag,
-            KEY_TYPE: self.type.value,
+            KEY_TYPE: self.type.name,
             KEY_LUID: self.luid,
         }
 
@@ -211,9 +211,9 @@ class TableauServerClient:
             )
         return self.get_datasources(req_options=req_options)
 
-    def get_task_by_datasource_refresh_spec(
+    def get_datasource_and_task_by_datasource_refresh_spec(
         self, spec: DatasourceRefreshSpec
-    ) -> TaskItem:
+    ) -> Tuple[DatasourceItem, TaskItem]:
         if self.__all_tasks is None:
             self.__all_tasks = self.get_tasks()
         # Find the datasource by LUID or name and tag:
@@ -247,26 +247,36 @@ class TableauServerClient:
                 f"Found {len(tasks_found)} tasks matching spec {spec}."
                 f" The results are: {task_list_to_string(tasks_found)}"
             )
-        elif len(tasks_found) == 0:
-            UserException(
-                f"No refresh task found for datasource: {datasource_to_string(ds)}."
-                f" Please create the extract refresh of type {spec.type} first."
+        if len(tasks_found) == 0:
+            raise UserException(
+                f"No {spec.type.name} refresh task found for datasource: {datasource_to_string(ds)}."
+                f" Please create the extract refresh of type {spec.type.name} first."
             )
-        return tasks_found[0]
+        return ds, tasks_found[0]
 
     def refresh_datasources(
         self, ds_list: List[DatasourceRefreshSpec], wait_for_jobs: bool = False
     ) -> List[JobItem]:
+        def refresh_datasource_by_running_task_with_logging(
+            ds: DatasourceItem, task: TaskItem
+        ) -> JobItem:
+            logging.info(f'Triggering extract for: "{ds.name}" with LUID: "{ds.id}".')
+            return self.run_task(task)
+
         logging.info(
             "Finding refresh tasks for specfied datasources and refresh types."
         )
-        tasks_to_run = [
-            self.get_task_by_datasource_refresh_spec(spec) for spec in ds_list
+        datasources_with_tasks_to_run = [
+            self.get_datasource_and_task_by_datasource_refresh_spec(spec)
+            for spec in ds_list
         ]
         logging.info(
-            "Found task to run for every datasource. Attempting to run these tasks as jobs."
+            "Found a task to run for every datasource. Attempting to run these tasks as jobs."
         )
-        jobs = [self.run_task(task) for task in tasks_to_run]
+        jobs = [
+            refresh_datasource_by_running_task_with_logging(ds, task)
+            for ds, task in datasources_with_tasks_to_run
+        ]
         logging.info("Successfully started all the jobs.")
         if wait_for_jobs:
             logging.info("Waiting for all jobs to complete.")
