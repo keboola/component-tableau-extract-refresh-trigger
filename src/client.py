@@ -124,7 +124,9 @@ def retry_predicate(exception: Exception) -> bool:
         return False
     exception: ServerResponseError
     if exception.code in ("404004",):
-        raise UserException(f"API request failure: {exception.detail}") from exception
+        raise UserException(
+            f"API request failure {exception.code}, {exception.summary} - {exception.detail}"
+        ) from exception
     return True
 
 
