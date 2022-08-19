@@ -103,7 +103,9 @@ def generate_datasource_search_error_message(
     error_message = None
     if not datasources:
         if not spec.luid:
-            error_message = f"There is no data source for the combination of name {spec.name} and tag {spec.tag}."
+            error_message = f"There is no datasource with name {spec.name}" + (
+                f" and tag {spec.tag}." if spec.tag else "."
+            )
         if spec.luid:
             error_message = (
                 f"There is no data source with the specified LUID {spec.luid}."
@@ -117,6 +119,15 @@ def generate_datasource_search_error_message(
     return error_message
 
 
+def retry_predicate(exception: Exception) -> bool:
+    if not isinstance(exception, ServerResponseError):
+        return False
+    exception: ServerResponseError
+    if exception.code in ("404004",):
+        raise UserException(f"API request failure: {exception.detail}") from exception
+    return True
+
+
 @dataclass(slots=True)
 class TableauServerClient:
     token_name: str
@@ -127,7 +138,7 @@ class TableauServerClient:
     __server: tsc.Server = field(init=False)
     __server_info: ServerInfoItem = field(init=False)
     __request_retry_decorator = retry(
-        exceptions=ServerResponseError,
+        predicate=retry_predicate,
         tries=REQUEST_MAX_RETRIES,
         delay=REQUEST_RETRIES_INITIAL_DELAY,
         backoff=REQUEST_RETRIES_BACKOFF_FACTOR,
@@ -138,12 +149,6 @@ class TableauServerClient:
     __all_tasks: Optional[List[TaskItem]] = field(init=False, default=None)
 
     def __post_init__(self):
-        # if authentication_type == "user/password":
-        # self.auth = tsc.TableauAuth(
-        #     self.cfg_params[KEY_USER_NAME],
-        #     self.cfg_params[KEY_API_PASS],
-        #     site_id=site_id,
-        # )
         self.__auth = tsc.PersonalAccessTokenAuth(
             token_name=self.token_name,
             personal_access_token=self.token_secret,
@@ -211,7 +216,7 @@ class TableauServerClient:
             self.__all_tasks = self.get_tasks()
         # Find the datasource by LUID or name and tag:
         if spec.luid:
-            ds = self.get_datasource_by_id(spec.luid)
+            ds: DatasourceItem = self.get_datasource_by_id(spec.luid)
             if spec.name and spec.name != ds.name:
                 raise UserException(
                     f"The datasource retrieved by the LUID '{spec.luid}' has name '{ds.name}'"
@@ -223,7 +228,7 @@ class TableauServerClient:
                 raise UserException(
                     generate_datasource_search_error_message(spec, candidate_ds_list)
                 )
-            ds = candidate_ds_list[0]
+            ds: DatasourceItem = candidate_ds_list[0]
         # Find the task by type and target datasource:
         tasks_found: List[TaskItem] = list()
         for task in self.__all_tasks:

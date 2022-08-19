@@ -4,4 +4,4 @@ keboola.http-client
 mock
 freezegun
 tableauserverclient==0.19
-retry
+decorator
