@@ -1,23 +1,16 @@
 """
-Template Component main class.
+Tableau extract refresh trigger component main class.
 
 """
 
 import logging
 from typing import List, Optional
 
-# import xmltodict
-
 from keboola.component import ComponentBase, UserException
 
 from client import TableauServerClient, DatasourceRefreshSpec
 
-# global constants
-
-
 # configuration variables
-# KEY_API_PASS = "#password"
-# KEY_USER_NAME = "user"
 KEY_ENDPOINT = "endpoint"
 KEY_POLL_MODE = "poll_mode"
 
@@ -48,14 +41,15 @@ class TableauExtractRefreshTrigger(ComponentBase):
         if authentication_type != "Personal Access Token":
             raise UserException("Personal Access Token must be used.")
 
-        # self.validate_configuration_parameters(MANDATORY_PARS)
+        self.validate_configuration_parameters(MANDATORY_PARS)
         # override debug from config
         debug: Optional[bool] = params.get("debug")
 
         if not debug:
             # suppress info logging on the Tableau endpoints
-            logging.getLogger("tableau.endpoint.jobs").setLevel(logging.ERROR)
-            logging.getLogger("tableau.endpoint.datasources").setLevel(logging.ERROR)
+            logging.getLogger("tableau.endpoint.jobs").setLevel(logging.WARNING)
+            logging.getLogger("tableau.endpoint.datasources").setLevel(logging.WARNING)
+            logging.getLogger("tableau.endpoint.auth").setLevel(logging.WARNING)
 
         token_name: str = params[KEY_TOKEN_NAME]
         token_secret: str = params[KEY_TOKEN_SECRET]
@@ -71,11 +65,6 @@ class TableauExtractRefreshTrigger(ComponentBase):
             site_id=site_id,
             endpoint=endpoint,
         )
-
-        # all_datasources = client.get_datasources()
-        # print(all_datasources)
-        # all_tasks = client.get_tasks()
-        # print(all_tasks)
 
         refresh_specs = [
             DatasourceRefreshSpec.from_dict(ds_refresh_spec)

@@ -109,13 +109,6 @@ def generate_datasource_search_error_message(
                 f"There is no data source with the specified LUID {spec.luid}."
             )
 
-    # this happens when luid is set and name is not matching the dataset
-    if len(datasources) == 1 and spec.name != datasources[0].name:
-        error_message = (
-            f"The dataset name retrieved by the specified LUID: '{datasources[0].name}' "
-            f"does not match the '{spec.name}' specified in corresponding filter: {spec}"
-        )
-
     if len(datasources) > 1:
         error_message = (
             f"There is more results for given filter: {spec}, "
@@ -219,6 +212,11 @@ class TableauServerClient:
         # Find the datasource by LUID or name and tag:
         if spec.luid:
             ds = self.get_datasource_by_id(spec.luid)
+            if spec.name and spec.name != ds.name:
+                raise UserException(
+                    f"The datasource retrieved by the LUID '{spec.luid}' has name '{ds.name}'"
+                    f" which does not match the name specified in the configuration: '{spec.name}'."
+                )
         else:
             candidate_ds_list = self.get_datasource_by_name_and_tag(spec.name, spec.tag)
             if len(candidate_ds_list) != 1:
@@ -226,6 +224,7 @@ class TableauServerClient:
                     generate_datasource_search_error_message(spec, candidate_ds_list)
                 )
             ds = candidate_ds_list[0]
+        # Find the task by type and target datasource:
         tasks_found: List[TaskItem] = list()
         for task in self.__all_tasks:
             if task.task_type != spec.type.value:
@@ -243,7 +242,7 @@ class TableauServerClient:
             )
         elif len(tasks_found) == 0:
             UserException(
-                f"No task found for dataset: {datasource_to_string(ds)}."
+                f"No refresh task found for datasource: {datasource_to_string(ds)}."
                 f" Please create the extract refresh of type {spec.type} first."
             )
         return tasks_found[0]
@@ -251,11 +250,21 @@ class TableauServerClient:
     def refresh_datasources(
         self, ds_list: List[DatasourceRefreshSpec], wait_for_jobs: bool = False
     ) -> List[JobItem]:
+        logging.info(
+            "Finding refresh tasks for specfied datasources and refresh types."
+        )
         tasks_to_run = [
             self.get_task_by_datasource_refresh_spec(spec) for spec in ds_list
         ]
+        logging.info(
+            "Found task to run for every datasource. Attempting to run these tasks as jobs."
+        )
         jobs = [self.run_task(task) for task in tasks_to_run]
+        logging.info("Successfully started all the jobs.")
         if wait_for_jobs:
-            return [self.wait_for_job(job) for job in jobs]
+            logging.info("Waiting for all jobs to complete.")
+            finished_jobs = [self.wait_for_job(job) for job in jobs]
+            logging.info("All jobs completed.")
+            return finished_jobs
         else:
             return jobs
