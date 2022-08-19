@@ -94,19 +94,25 @@ If required, change local data folder (the `CUSTOM_FOLDER` placeholder) path to 
 
 ```json
 {
-  "parameters": {
-    "#password": "XXXXX",
-    "user": "example@keboola.com",
-    "site_id": "testsite",
-    "endpoint":"https://dub01.online.tableau.com/",
+  "parameters": { 
+    "authentication_type": "Personal Access Token",
+    "token_name": "MyTokenName",
+    "#token_secret": "XXX",
+    "endpoint": "https://dub01.online.tableau.com",
+    "site_id": "mycompany",
     "datasources": [
-      {"name":"FullTestExtract", "type": "RefreshExtractTask", "luid": "ecf7d5e0-c493-4e03-8d55-106f9f46af3b"},
-      {"name":"IncrementalTestExtract", "type": "IncrementExtractTask", "luid": "ecf7d5e0-a345-4e03-8d55-106f9f46af1g"}
+        {
+            "luid": "2ae18e13-6ff1-ab4f-95eb-374124514042",
+            "name": "Leads",
+            "tag": "",
+            "type": "RefreshExtractTask"
+        }
     ],
     "poll_mode": 1,
     "debug": false
   },
-  "image_parameters": {}
+  "image_parameters": {},
+  "action": "run"
 }
 ```
 
