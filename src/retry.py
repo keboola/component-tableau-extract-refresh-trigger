@@ -8,7 +8,6 @@ from numbers import Number
 
 from decorator import decorator
 
-
 logging_logger = logging.getLogger()
 
 
@@ -87,7 +86,6 @@ def retry(
                    default: retry.logging_logger. if None, logging is disabled.
     :returns: a retry decorator.
     """
-
     @decorator
     def retry_decorator(f, *fargs, **fkwargs):
         args = fargs if fargs else list()

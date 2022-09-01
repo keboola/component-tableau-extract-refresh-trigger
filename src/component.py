@@ -33,7 +33,7 @@ class TableauExtractRefreshTrigger(ComponentBase):
         Main execution code
         """
 
-        params: dict = self.configuration.parameters  # noqa
+        params: dict = self.configuration.parameters
 
         authentication_type: str = params.get(KEY_AUTH_TYPE, "Personal Access Token")
         if authentication_type != "Personal Access Token":
@@ -65,8 +65,7 @@ class TableauExtractRefreshTrigger(ComponentBase):
         )
 
         refresh_specs = [
-            DatasourceRefreshSpec.from_dict(ds_refresh_spec)
-            for ds_refresh_spec in datasource_refresh_specs
+            DatasourceRefreshSpec.from_dict(ds_refresh_spec) for ds_refresh_spec in datasource_refresh_specs
         ]
 
         client.refresh_datasources(refresh_specs, wait_for_jobs=wait_for_jobs)

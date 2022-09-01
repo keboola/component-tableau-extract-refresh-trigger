@@ -75,10 +75,8 @@ class DatasourceRefreshSpec:
 
 
 def datasource_to_string(datasource: DatasourceItem) -> str:
-    return (
-        f"(Name: {datasource.name}, Project:{datasource.project_name},"
-        f" LUID: {datasource.id}, Tags: {datasource.tags})"
-    )
+    return (f"(Name: {datasource.name}, Project:{datasource.project_name},"
+            f" LUID: {datasource.id}, Tags: {datasource.tags})")
 
 
 def datasource_list_to_string(datasources: List[DatasourceItem]) -> str:
@@ -97,25 +95,19 @@ def task_list_to_string(tasks: List[TaskItem]) -> str:
     return str
 
 
-def generate_datasource_search_error_message(
-    spec: DatasourceRefreshSpec, datasources: List[DatasourceItem]
-) -> str:
+def generate_datasource_search_error_message(spec: DatasourceRefreshSpec, datasources: List[DatasourceItem]) -> str:
     error_message = None
     if not datasources:
         if not spec.luid:
-            error_message = f"There is no datasource with name {spec.name}" + (
-                f" and tag {spec.tag}." if spec.tag else "."
-            )
+            error_message = f"There is no datasource with name {spec.name}" + (f" and tag {spec.tag}."
+                                                                               if spec.tag else ".")
         if spec.luid:
-            error_message = (
-                f"There is no data source with the specified LUID {spec.luid}."
-            )
+            error_message = (f"There is no data source with the specified LUID {spec.luid}.")
 
     if len(datasources) > 1:
         error_message = (
             f"There is more results for given filter: {spec}, "
-            f"set more specific tag or use LUID. The results are: {datasource_list_to_string(datasources)}"
-        )
+            f"set more specific tag or use LUID. The results are: {datasource_list_to_string(datasources)}")
     return error_message
 
 
@@ -123,10 +115,9 @@ def retry_predicate(exception: Exception) -> bool:
     if not isinstance(exception, ServerResponseError):
         return False
     exception: ServerResponseError
-    if exception.code in ("404004",):
+    if exception.code in ("404004", ):
         raise UserException(
-            f"API request failure {exception.code}, {exception.summary} - {exception.detail}"
-        ) from exception
+            f"API request failure {exception.code}, {exception.summary} - {exception.detail}") from exception
     return True
 
 
@@ -161,9 +152,7 @@ class TableauServerClient:
         logging.info(f"Using server API version: {self.__server_info.rest_api_version}")
 
     @__request_retry_decorator
-    def get_datasources(
-        self, req_options: Optional[RequestOptions] = None
-    ) -> List[DatasourceItem]:
+    def get_datasources(self, req_options: Optional[RequestOptions] = None) -> List[DatasourceItem]:
         with self.__server.auth.sign_in(self.__auth):
             return list(tsc.Pager(self.__server.datasources, request_opts=req_options))
 
@@ -186,50 +175,36 @@ class TableauServerClient:
     def run_task(self, task_item: TaskItem) -> JobItem:
         with self.__server.auth.sign_in(self.__auth):
             response_content = self.__server.tasks.run(
-                task_item
-            )  # This library function is unfinished so I have to explicitly parse the response:
+                task_item)    # This library function is unfinished so I have to explicitly parse the response:
         job_items = JobItem.from_response(response_content, self.__server.namespace)
         assert len(job_items) == 1
         return job_items[0]
 
-    def get_datasource_by_name_and_tag(
-        self, name: str, tag: Optional[str]
-    ) -> List[DatasourceItem]:
+    def get_datasource_by_name_and_tag(self, name: str, tag: Optional[str]) -> List[DatasourceItem]:
         req_options = tsc.RequestOptions()
-        req_options.filter.add(
-            tsc.Filter(
-                tsc.RequestOptions.Field.Name, tsc.RequestOptions.Operator.Equals, name
-            )
-        )
+        req_options.filter.add(tsc.Filter(tsc.RequestOptions.Field.Name, tsc.RequestOptions.Operator.Equals, name))
         if tag:
-            req_options.filter.add(
-                tsc.Filter(
-                    tsc.RequestOptions.Field.Tags,
-                    tsc.RequestOptions.Operator.Equals,
-                    tag,
-                )
-            )
+            req_options.filter.add(tsc.Filter(
+                tsc.RequestOptions.Field.Tags,
+                tsc.RequestOptions.Operator.Equals,
+                tag,
+            ))
         return self.get_datasources(req_options=req_options)
 
     def get_datasource_and_task_by_datasource_refresh_spec(
-        self, spec: DatasourceRefreshSpec
-    ) -> Tuple[DatasourceItem, TaskItem]:
+            self, spec: DatasourceRefreshSpec) -> Tuple[DatasourceItem, TaskItem]:
         if self.__all_tasks is None:
             self.__all_tasks = self.get_tasks()
         # Find the datasource by LUID or name and tag:
         if spec.luid:
             ds: DatasourceItem = self.get_datasource_by_id(spec.luid)
             if spec.name and spec.name != ds.name:
-                raise UserException(
-                    f"The datasource retrieved by the LUID '{spec.luid}' has name '{ds.name}'"
-                    f" which does not match the name specified in the configuration: '{spec.name}'."
-                )
+                raise UserException(f"The datasource retrieved by the LUID '{spec.luid}' has name '{ds.name}'"
+                                    f" which does not match the name specified in the configuration: '{spec.name}'.")
         else:
             candidate_ds_list = self.get_datasource_by_name_and_tag(spec.name, spec.tag)
             if len(candidate_ds_list) != 1:
-                raise UserException(
-                    generate_datasource_search_error_message(spec, candidate_ds_list)
-                )
+                raise UserException(generate_datasource_search_error_message(spec, candidate_ds_list))
             ds: DatasourceItem = candidate_ds_list[0]
         # Find the task by type and target datasource:
         tasks_found: List[TaskItem] = list()
@@ -243,40 +218,24 @@ class TableauServerClient:
                 continue
             tasks_found.append(task)
         if len(tasks_found) > 1:
-            raise UserException(
-                f"Found {len(tasks_found)} tasks matching spec {spec}."
-                f" The results are: {task_list_to_string(tasks_found)}"
-            )
+            raise UserException(f"Found {len(tasks_found)} tasks matching spec {spec}."
+                                f" The results are: {task_list_to_string(tasks_found)}")
         if len(tasks_found) == 0:
-            raise UserException(
-                f"No {spec.type.name} refresh task found for datasource: {datasource_to_string(ds)}."
-                f" Please create the extract refresh of type {spec.type.name} first."
-            )
+            raise UserException(f"No {spec.type.name} refresh task found for datasource: {datasource_to_string(ds)}."
+                                f" Please create the extract refresh of type {spec.type.name} first.")
         return ds, tasks_found[0]
 
-    def refresh_datasources(
-        self, ds_list: List[DatasourceRefreshSpec], wait_for_jobs: bool = False
-    ) -> List[JobItem]:
-        def refresh_datasource_by_running_task_with_logging(
-            ds: DatasourceItem, task: TaskItem
-        ) -> JobItem:
+    def refresh_datasources(self, ds_list: List[DatasourceRefreshSpec], wait_for_jobs: bool = False) -> List[JobItem]:
+        def run_task_with_logging(ds: DatasourceItem, task: TaskItem) -> JobItem:
             logging.info(f'Triggering extract for: "{ds.name}" with LUID: "{ds.id}".')
             return self.run_task(task)
 
-        logging.info(
-            "Finding refresh tasks for specfied datasources and refresh types."
-        )
+        logging.info("Finding refresh tasks for specfied datasources and refresh types.")
         datasources_with_tasks_to_run = [
-            self.get_datasource_and_task_by_datasource_refresh_spec(spec)
-            for spec in ds_list
+            self.get_datasource_and_task_by_datasource_refresh_spec(spec) for spec in ds_list
         ]
-        logging.info(
-            "Found a task to run for every datasource. Attempting to run these tasks as jobs."
-        )
-        jobs = [
-            refresh_datasource_by_running_task_with_logging(ds, task)
-            for ds, task in datasources_with_tasks_to_run
-        ]
+        logging.info("Found a task to run for every datasource. Attempting to run these tasks as jobs.")
+        jobs = [run_task_with_logging(ds, task) for ds, task in datasources_with_tasks_to_run]
         logging.info("Successfully started all the jobs.")
         if wait_for_jobs:
             logging.info("Waiting for all jobs to complete.")
