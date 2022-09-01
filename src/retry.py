@@ -3,16 +3,19 @@ import random
 import time
 
 from functools import partial
-from typing import Callable
+from typing import Callable, ParamSpec, TypeVar
 from numbers import Number
 
 from decorator import decorator
 
 logging_logger = logging.getLogger()
 
+T = TypeVar('T')
+P = ParamSpec('P')
+
 
 def __retry_internal(
-    f: Callable,
+    f: Callable[[], T],
     predicate: Callable[[Exception], bool] = lambda _: True,
     tries: int = -1,
     delay: Number = 0,
@@ -20,7 +23,7 @@ def __retry_internal(
     backoff: Number = 1,
     jitter: Number = 0,
     logger: logging.Logger = logging_logger,
-):
+) -> T:
     """
     Executes a function and retries it if it failed.
 
@@ -70,7 +73,7 @@ def retry(
     backoff: Number = 1,
     jitter: Number = 0,
     logger: logging.Logger = logging_logger,
-):
+) -> Callable[[Callable[P, T]], Callable[P, T]]:
     """Returns a retry decorator.
 
     :param predicate: a predicate accepting the caught exception as its sole argument,
@@ -87,7 +90,7 @@ def retry(
     :returns: a retry decorator.
     """
     @decorator
-    def retry_decorator(f, *fargs, **fkwargs):
+    def retry_decorator(f: Callable[P, T], *fargs, **fkwargs) -> Callable[P, T]:
         args = fargs if fargs else list()
         kwargs = fkwargs if fkwargs else dict()
         return __retry_internal(
@@ -105,7 +108,7 @@ def retry(
 
 
 def retry_call(
-    f,
+    f: Callable[P, T],
     fargs=None,
     fkwargs=None,
     predicate: Callable[[Exception], bool] = lambda _: True,
@@ -115,15 +118,10 @@ def retry_call(
     backoff: Number = 1,
     jitter: Number = 0,
     logger: logging.Logger = logging_logger,
-):
+) -> T:
     """
     Calls a function and re-executes it if it failed.
-
-    :param f: the function to execute.
-    :param fargs: the positional arguments of the function to execute.
-    :param fkwargs: the named arguments of the function to execute.
-    :param predicate: a predicate accepting the caught exception as its sole argument,
-                      it must evaluate to True to attempt retries,
+from ast import Call        it must evaluate to True to attempt retries,
                       otherwise the exception is re-raised. default: lambda _: True.
     :param tries: the maximum number of attempts. default: -1 (infinite).
     :param delay: initial delay between attempts. default: 0.

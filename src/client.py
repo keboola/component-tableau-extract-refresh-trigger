@@ -115,7 +115,7 @@ def retry_predicate(exception: Exception) -> bool:
     if not isinstance(exception, ServerResponseError):
         return False
     exception: ServerResponseError
-    if exception.code in ("404004", ):
+    if exception.code in ("404004",):
         raise UserException(
             f"API request failure {exception.code}, {exception.summary} - {exception.detail}") from exception
     return True
@@ -197,7 +197,7 @@ class TableauServerClient:
             self.__all_tasks = self.get_tasks()
         # Find the datasource by LUID or name and tag:
         if spec.luid:
-            ds: DatasourceItem = self.get_datasource_by_id(spec.luid)
+            ds = self.get_datasource_by_id(spec.luid)
             if spec.name and spec.name != ds.name:
                 raise UserException(f"The datasource retrieved by the LUID '{spec.luid}' has name '{ds.name}'"
                                     f" which does not match the name specified in the configuration: '{spec.name}'.")
