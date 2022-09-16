@@ -1,22 +1,14 @@
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from math import sqrt
 from typing import List, Optional, Tuple
-import logging
-
 from retry import retry
 
 from keboola.component.exceptions import UserException
 
 import tableauserverclient as tsc
-
-from tableauserverclient.models import (
-    TaskItem,
-    DatasourceItem,
-    ServerInfoItem,
-    JobItem,
-    Target,
-)
+from tableauserverclient.models import TaskItem, DatasourceItem, ServerInfoItem, JobItem, Target
 from tableauserverclient.server import RequestOptions
 from tableauserverclient.server.endpoint import ServerResponseError
 
@@ -32,6 +24,7 @@ REQUEST_RETRIES_MAX_DELAY = 60
 REQUEST_RETRIES_JITTER = (0, 0.5)
 
 
+# TODO : Feedback : Is a class really necessary here? A bit overkill IMO
 class DatasourceRefreshTaskType(Enum):
     Full = TaskItem.Type.ExtractRefresh
     Incremental = "IncrementExtractTask"
@@ -80,6 +73,7 @@ def datasource_to_string(datasource: DatasourceItem) -> str:
 
 
 def datasource_list_to_string(datasources: List[DatasourceItem]) -> str:
+    # TODO : dont use the str variable type as a nae for a variable
     str = "["
     for ds in datasources:
         str += f"{datasource_to_string(ds)}, "
@@ -88,6 +82,7 @@ def datasource_list_to_string(datasources: List[DatasourceItem]) -> str:
 
 
 def task_list_to_string(tasks: List[TaskItem]) -> str:
+    # TODO : dont use the str variable type as a nae for a variable
     str = "["
     for task in tasks:
         str += f"(ID: {task.id}, Task type:{task.task_type}, Target: {task.target}), "
@@ -166,7 +161,9 @@ class TableauServerClient:
         with self.__server.auth.sign_in(self.__auth):
             return self.__server.datasources.get_by_id(datasource_id)
 
+
     @__request_retry_decorator
+    # TODO : why is it possible to add str or JobItem, it would be more clear if just one is used
     def wait_for_job(self, job_id: str | JobItem) -> JobItem:
         with self.__server.auth.sign_in(self.__auth):
             return self.__server.jobs.wait_for_job(job_id)
@@ -175,9 +172,10 @@ class TableauServerClient:
     def run_task(self, task_item: TaskItem) -> JobItem:
         with self.__server.auth.sign_in(self.__auth):
             response_content = self.__server.tasks.run(
-                task_item)    # This library function is unfinished so I have to explicitly parse the response:
+                task_item)  # This library function is unfinished so I have to explicitly parse the response:
         job_items = JobItem.from_response(response_content, self.__server.namespace)
         assert len(job_items) == 1
+        # TODO : Add comment on why job_items[0] is returned, without running the code I do not know the reason
         return job_items[0]
 
     def get_datasource_by_name_and_tag(self, name: str, tag: Optional[str]) -> List[DatasourceItem]:
@@ -191,8 +189,9 @@ class TableauServerClient:
             ))
         return self.get_datasources(req_options=req_options)
 
-    def get_datasource_and_task_by_datasource_refresh_spec(
-            self, spec: DatasourceRefreshSpec) -> Tuple[DatasourceItem, TaskItem]:
+    # TODO too many if/else blocks in one method, it would be way more readable if they were split.
+    def get_datasource_and_task_by_datasource_refresh_spec(self, spec: DatasourceRefreshSpec) -> Tuple[
+        DatasourceItem, TaskItem]:
         if self.__all_tasks is None:
             self.__all_tasks = self.get_tasks()
         # Find the datasource by LUID or name and tag:
@@ -223,9 +222,11 @@ class TableauServerClient:
         if len(tasks_found) == 0:
             raise UserException(f"No {spec.type.name} refresh task found for datasource: {datasource_to_string(ds)}."
                                 f" Please create the extract refresh of type {spec.type.name} first.")
+        # TODO : Add comment on why tasks_found[0] is returned, without running the code I do not know the reason
         return ds, tasks_found[0]
 
     def refresh_datasources(self, ds_list: List[DatasourceRefreshSpec], wait_for_jobs: bool = False) -> List[JobItem]:
+        # TODO: Does this inner function have to be an inner function?
         def run_task_with_logging(ds: DatasourceItem, task: TaskItem) -> JobItem:
             logging.info(f'Triggering extract for: "{ds.name}" with LUID: "{ds.id}".')
             return self.run_task(task)
