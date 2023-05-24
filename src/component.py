@@ -76,7 +76,7 @@ class Component(KBCEnvHandler):
             user_server_version = True
         else:
             user_server_version = False
-
+        logging.warning(f"use server:{user_server_version}, api: {api_version}")
         self.server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=user_server_version)
 
         if not user_server_version:
@@ -135,7 +135,9 @@ class Component(KBCEnvHandler):
 
     def get_all_datasource_refresh_tasks(self):
         # filter only datasource refresh tasks
-        tasks = list(tsc.Pager(self.server.tasks))
+        tasks = []
+        for t in tsc.Pager(self.server.tasks):
+            tasks.append(t)
         return [task for task in tasks if task.target.type == 'datasource']
 
     def validate_dataset_names(self, all_ds, datasources):
