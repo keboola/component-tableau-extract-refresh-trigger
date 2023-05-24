@@ -82,7 +82,7 @@ class Component(KBCEnvHandler):
         if not user_server_version:
             self.server.version = api_version
         self.server_info = self.server.server_info.get()
-        logging.info(F"Using server API version: {self.server_info.rest_api_version}")
+        logging.info(F"Using API version: {self.server_info.rest_api_version}")
 
     def run(self):
         '''
