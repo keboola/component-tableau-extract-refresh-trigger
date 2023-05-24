@@ -11,43 +11,25 @@
     "authentication_type"
   ],
   "properties": {
+    "api_version": {
+      "type": "string",
+      "title": "REST API Version",
+      "enum": [
+        "use_server_version",
+        "3.19"
+      ],
+      "default": "use_server_version",
+      "propertyOrder": 1
+    },
     "authentication_type": {
       "type": "string",
       "title": "Authentication Type",
-      "description": "<b style='color:red'>NOTE: User/Password authentication will be deprecated starting 02/2022.</b>",
       "enum": [
-        "Personal Access Token",
-        "user/password"
+        "Personal Access Token"
       ],
-      "default": "user/password",
+      "enabled": false,
+      "default": "Personal Access Token",
       "propertyOrder": 10
-    },
-    "user": {
-      "type": "string",
-      "title": "Tableau User Name",
-      "propertyOrder": 100,
-      "options": {
-        "dependencies": {
-          "authentication_type": [
-            "user/password",
-            null
-          ]
-        }
-      }
-    },
-    "#password": {
-      "type": "string",
-      "title": "Tableau User Password",
-      "format": "password",
-      "propertyOrder": 200,
-      "options": {
-        "dependencies": {
-          "authentication_type": [
-            "user/password",
-            null
-          ]
-        }
-      }
     },
     "token_name": {
       "type": "string",

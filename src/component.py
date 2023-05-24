@@ -71,8 +71,16 @@ class Component(KBCEnvHandler):
             self.auth = tsc.PersonalAccessTokenAuth(token_name=self.cfg_params['token_name'],
                                                     personal_access_token=self.cfg_params['#token_secret'],
                                                     site_id=site_id)
+        api_version = self.cfg_params.get('api_version', 'use_server_version')
+        if api_version == 'use_server_version':
+            user_server_version = True
+        else:
+            user_server_version = False
 
-        self.server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=True)
+        self.server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=False)
+
+        if not user_server_version:
+            self.server.version = api_version
         self.server_info = self.server.server_info.get()
         logging.info(F"Using server API version: {self.server_info.rest_api_version}")
 
