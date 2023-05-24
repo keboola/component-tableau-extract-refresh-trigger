@@ -77,7 +77,7 @@ class Component(KBCEnvHandler):
         else:
             user_server_version = False
 
-        self.server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=False)
+        self.server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=user_server_version)
 
         if not user_server_version:
             self.server.version = api_version
