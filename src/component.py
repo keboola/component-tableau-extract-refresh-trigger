@@ -11,10 +11,11 @@ import tableauserverclient as tsc
 import xmltodict
 from kbc.env_handler import KBCEnvHandler
 
+# configuration variables
+from tableau_custom.endpoints.tasks_endpoint import TaskCustom
+
 # global constants
 
-
-# configuration variables
 KEY_TAG = 'tag'
 KEY_NAME = 'name'
 KEY_LUID = 'luid'
@@ -31,6 +32,8 @@ KEY_AUTH_TYPE = 'authentication_type'
 MANDATORY_PARS = [KEY_API_PASS, KEY_USER_NAME, KEY_DATASOURCES, KEY_ENDPOINT]
 
 APP_VERSION = '0.0.1'
+
+logger = logging.getLogger('tableau.endpoint.tasks')
 
 
 class Component(KBCEnvHandler):
@@ -71,10 +74,18 @@ class Component(KBCEnvHandler):
             self.auth = tsc.PersonalAccessTokenAuth(token_name=self.cfg_params['token_name'],
                                                     personal_access_token=self.cfg_params['#token_secret'],
                                                     site_id=site_id)
+        api_version = self.cfg_params.get('api_version', 'use_server_version')
+        if api_version == 'use_server_version':
+            user_server_version = True
+        else:
+            user_server_version = False
+        logging.warning(f"use server:{user_server_version}, api: {api_version}")
+        self.server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=user_server_version)
 
-        self.server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=True)
+        if not user_server_version:
+            self.server.version = api_version
         self.server_info = self.server.server_info.get()
-        logging.info(F"Using server API version: {self.server_info.rest_api_version}")
+        logging.info(F"Using API version: {self.server_info.rest_api_version}")
 
     def run(self):
         '''
@@ -127,7 +138,7 @@ class Component(KBCEnvHandler):
 
     def get_all_datasource_refresh_tasks(self):
         # filter only datasource refresh tasks
-        tasks = list(tsc.Pager(self.server.tasks))
+        tasks = list(tsc.Pager(TaskCustom(self.server)))
         return [task for task in tasks if task.target.type == 'datasource']
 
     def validate_dataset_names(self, all_ds, datasources):
