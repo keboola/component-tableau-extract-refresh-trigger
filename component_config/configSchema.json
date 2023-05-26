@@ -15,13 +15,14 @@
       "enum": [
         "Personal Access Token"
       ],
-      "enabled": false,
+      "readOnly": true,
       "default": "Personal Access Token",
       "propertyOrder": 10
     },
     "token_name": {
       "type": "string",
       "title": "PAT Token Name",
+      "description": "To create the token see the <a href=\"https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm#create-tokens\">documentation</a>",
       "propertyOrder": 100,
       "options": {
         "dependencies": {
@@ -34,6 +35,7 @@
     "#token_secret": {
       "type": "string",
       "title": "PAT Token Secret",
+      "description": "To create the token see the <a href=\"https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm#create-tokens\">documentation</a>",
       "format": "password",
       "propertyOrder": 200,
       "options": {
