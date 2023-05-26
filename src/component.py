@@ -10,6 +10,9 @@ import sys
 import tableauserverclient as tsc
 import xmltodict
 from kbc.env_handler import KBCEnvHandler
+from tableauserverclient.server import TaskItem, PaginationItem
+from tableauserverclient.server.endpoint import Tasks
+from tableauserverclient.server.endpoint.endpoint import api
 
 # global constants
 
@@ -31,6 +34,39 @@ KEY_AUTH_TYPE = 'authentication_type'
 MANDATORY_PARS = [KEY_API_PASS, KEY_USER_NAME, KEY_DATASOURCES, KEY_ENDPOINT]
 
 APP_VERSION = '0.0.1'
+
+
+class TestTasks(Tasks):
+
+    @property
+    def baseurl(self):
+        return "{0}/sites/{1}/tasks".format(self.parent_srv.baseurl,
+                                            self.parent_srv.site_id)
+
+    def __normalize_task_type(self, task_type):
+        """
+            The word for extract refresh used in API URL is "extractRefreshes".
+            It is different than the tag "extractRefresh" used in the request body.
+        """
+        if task_type == TaskItem.Type.ExtractRefresh:
+            return '{}es'.format(task_type)
+        else:
+            return task_type
+
+    @api(version='2.6')
+    def get(self, req_options=None, task_type=TaskItem.Type.ExtractRefresh):
+        if task_type == TaskItem.Type.DataAcceleration:
+            self.parent_srv.assert_at_least_version("3.8")
+
+        logging.info('Querying all {} tasks for the site'.format(task_type))
+
+        url = "{0}/{1}".format(self.baseurl, self.__normalize_task_type(task_type))
+        server_response = self.get_request(url, req_options)
+
+        pagination_item = PaginationItem.from_response(server_response.content,
+                                                       self.parent_srv.namespace)
+        all_tasks = list(server_response.text)
+        return all_tasks, pagination_item
 
 
 class Component(KBCEnvHandler):
@@ -136,8 +172,11 @@ class Component(KBCEnvHandler):
     def get_all_datasource_refresh_tasks(self):
         # filter only datasource refresh tasks
         tasks = []
-        for t in tsc.Pager(self.server.tasks):
-            tasks.append(t)
+        with open('/data/out/files/responses.txt', 'w+') as out:
+            for t in tsc.Pager(TestTasks(self.server)):
+                tasks.append(t)
+            out.writelines(tasks)
+        exit(0)
         return [task for task in tasks if task.target.type == 'datasource']
 
     def validate_dataset_names(self, all_ds, datasources):
