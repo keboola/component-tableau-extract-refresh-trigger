@@ -13,8 +13,6 @@ class IntervalItem(object):
         Daily = "Daily"
         Weekly = "Weekly"
         Monthly = "Monthly"
-        # new in 3_20
-        Last = "Last"
 
     class Occurrence:
         Minutes = "minutes"
@@ -177,12 +175,13 @@ class MonthlyInterval(object):
         # like 'badstring' we catch and re-raise. Otherwise we convert to int and check
         # that it's in range 1-31
 
-        if interval_value != "LastDay":
+        # changed in 3.20
+        if interval_value not in ["LastDay", "Last"]:
             try:
-                if not (1 <= int(interval_value) <= 31):
+                if not (1 <= int(interval_value) <= 31) :
                     raise ValueError(error)
             except ValueError:
-                if interval_value != "LastDay":
+                if interval_value not in ["LastDay", "Last"]:
                     raise ValueError(error)
 
         self._interval = str(interval_value)
