@@ -79,13 +79,13 @@ class Component(KBCEnvHandler):
             user_server_version = True
         else:
             user_server_version = False
-        logging.warning(f"use server:{user_server_version}, api: {api_version}")
+        logging.debug(f"use server:{user_server_version}, api: {api_version}")
         self.server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=user_server_version)
 
         if not user_server_version:
             self.server.version = api_version
         self.server_info = self.server.server_info.get()
-        logging.info(F"Using API version: {self.server_info.rest_api_version}")
+        logging.info(F"Using API version: {self.server.version}")
 
     def run(self):
         '''
