@@ -176,12 +176,12 @@ class MonthlyInterval(object):
         # that it's in range 1-31
 
         # changed in 3.20
-        if interval_value not in ["LastDay", "Last"]:
+        if interval_value not in ["LastDay", "Last", "First"]:
             try:
                 if not (1 <= int(interval_value) <= 31):
                     raise ValueError(error)
             except ValueError:
-                if interval_value not in ["LastDay", "Last"]:
+                if interval_value not in ["LastDay", "Last", "First"]:
                     raise ValueError(error)
 
         self._interval = str(interval_value)
