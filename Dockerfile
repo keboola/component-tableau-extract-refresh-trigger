@@ -12,5 +12,7 @@ RUN pip install -r /code/requirements.txt
 
 WORKDIR /code/
 
+# Set the PYTHONWARNINGS environment variable
+ENV PYTHONWARNINGS "ignore::UserWarning:_distutils_hack"
 
 CMD ["python", "-u", "/code/src/component.py"]

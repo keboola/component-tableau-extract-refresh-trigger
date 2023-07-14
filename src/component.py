@@ -2,10 +2,6 @@
 Template Component main class.
 
 '''
-import warnings
-
-warnings.filterwarnings("ignore", category=UserWarning, module="_distutils_hack") # noqa
-
 import logging
 import os
 import sys
