@@ -6,6 +6,7 @@ Template Component main class.
 import logging
 import os
 import sys
+import warnings
 
 import tableauserverclient as tsc
 import xmltodict
@@ -34,6 +35,7 @@ MANDATORY_PARS = [KEY_API_PASS, KEY_USER_NAME, KEY_DATASOURCES, KEY_ENDPOINT]
 APP_VERSION = '0.0.1'
 
 logger = logging.getLogger('tableau.endpoint.tasks')
+warnings.filterwarnings("ignore", category=UserWarning, module="_distutils_hack")
 
 
 class Component(KBCEnvHandler):
