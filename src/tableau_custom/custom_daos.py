@@ -403,6 +403,8 @@ class ScheduleItem(object):
 
     @staticmethod
     def _parse_element(schedule_xml, ns):
+        print(schedule_xml)
+        exit()
         id = schedule_xml.get('id', None)
         name = schedule_xml.get('name', None)
         state = schedule_xml.get('state', None)
