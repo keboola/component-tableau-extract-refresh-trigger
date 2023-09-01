@@ -403,8 +403,6 @@ class ScheduleItem(object):
 
     @staticmethod
     def _parse_element(schedule_xml, ns):
-        print(schedule_xml)
-        exit()
         id = schedule_xml.get('id', None)
         name = schedule_xml.get('name', None)
         state = schedule_xml.get('state', None)
@@ -422,6 +420,11 @@ class ScheduleItem(object):
 
         interval_item = None
         frequency_detail_elem = schedule_xml.find('.//t:frequencyDetails', namespaces=ns)
+
+        element_string = ET.tostring(schedule_xml, encoding='utf-8').decode('utf-8')
+        print(element_string)
+        exit()
+
         if frequency_detail_elem is not None:
             interval_item = ScheduleItem._parse_interval_item(frequency_detail_elem, frequency, ns)
 
