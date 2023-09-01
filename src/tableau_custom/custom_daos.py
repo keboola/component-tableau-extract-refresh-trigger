@@ -421,8 +421,9 @@ class ScheduleItem(object):
         interval_item = None
         frequency_detail_elem = schedule_xml.find('.//t:frequencyDetails', namespaces=ns)
 
-        element_string = ET.tostring(schedule_xml, encoding='utf-8').decode('utf-8')
-        print(element_string)
+        if frequency == "Hourly":
+            element_string = ET.tostring(schedule_xml, encoding='utf-8').decode('utf-8')
+            print(element_string)
 
         if frequency_detail_elem is not None:
             interval_item = ScheduleItem._parse_interval_item(frequency_detail_elem, frequency, ns)
