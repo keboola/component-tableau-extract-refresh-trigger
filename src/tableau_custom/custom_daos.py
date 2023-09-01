@@ -73,6 +73,7 @@ class HourlyInterval(object):
             error = "Invalid interval {} not in {}".format(interval, str(VALID_INTERVALS))
             raise ValueError(error)
 
+        print(f"Detected interval: {interval}")
         self._interval = interval
 
     def _interval_type_pairs(self):
