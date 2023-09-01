@@ -384,7 +384,7 @@ class ScheduleItem(object):
             return DailyInterval(start_time)
 
         if frequency == IntervalItem.Frequency.Hourly:
-            interval_occurrence, interval_value = interval.pop()
+            interval_occurrence, interval_value = interval.pop(0)
 
             # We use fractional hours for the two minute-based intervals.
             # Need to convert to hours from minutes here
