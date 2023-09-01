@@ -394,6 +394,9 @@ class ScheduleItem(object):
             if interval_occurrence == IntervalItem.Occurrence.Minutes:
                 interval_value = float(interval_value) / 60
 
+            print(start_time)
+            print(end_time)
+            print(interval_value)
             return HourlyInterval(start_time, end_time, interval_value)
 
         if frequency == IntervalItem.Frequency.Weekly:
