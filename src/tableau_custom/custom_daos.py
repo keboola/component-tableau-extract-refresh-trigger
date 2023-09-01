@@ -422,7 +422,7 @@ class ScheduleItem(object):
         frequency_detail_elem = schedule_xml.find('.//t:frequencyDetails', namespaces=ns)
 
         if frequency_detail_elem is not None:
-            print(f"frequency_detail_elem: {frequency_detail_elem}")
+            print(f"frequency_detail_elem: {ET.tostring(frequency_detail_elem, encoding='utf-8').decode('utf-8')}")
             print(f"frequency: {frequency}")
             print(f"ns: {ns}")
             interval_item = ScheduleItem._parse_interval_item(frequency_detail_elem, frequency, ns)
