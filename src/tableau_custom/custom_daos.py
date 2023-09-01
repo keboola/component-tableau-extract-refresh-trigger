@@ -68,12 +68,13 @@ class HourlyInterval(object):
 
     @interval.setter
     def interval(self, interval):
+        print(f"Received interval: {interval}")
+
         VALID_INTERVALS = {.25, .5, 1, 2, 4, 6, 8, 12}
         if float(interval) not in VALID_INTERVALS:
             error = "Invalid interval {} not in {}".format(interval, str(VALID_INTERVALS))
             raise ValueError(error)
 
-        print(f"Detected interval: {interval}")
         self._interval = interval
 
     def _interval_type_pairs(self):
@@ -385,6 +386,7 @@ class ScheduleItem(object):
             return DailyInterval(start_time)
 
         if frequency == IntervalItem.Frequency.Hourly:
+            print(f"interval: {interval}")
             interval_occurrence, interval_value = interval.pop()
 
             # We use fractional hours for the two minute-based intervals.
@@ -423,9 +425,9 @@ class ScheduleItem(object):
         frequency_detail_elem = schedule_xml.find('.//t:frequencyDetails', namespaces=ns)
 
         if frequency_detail_elem is not None:
-            print(f"frequency_detail_elem: {ET.tostring(frequency_detail_elem, encoding='utf-8').decode('utf-8')}")
-            print(f"frequency: {frequency}")
-            print(f"ns: {ns}")
+            # print(f"frequency_detail_elem: {ET.tostring(frequency_detail_elem, encoding='utf-8').decode('utf-8')}")
+            # print(f"frequency: {frequency}")
+            # print(f"ns: {ns}")
             interval_item = ScheduleItem._parse_interval_item(frequency_detail_elem, frequency, ns)
 
         return id, name, state, created_at, updated_at, schedule_type, \
