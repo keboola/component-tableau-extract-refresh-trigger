@@ -176,12 +176,13 @@ class MonthlyInterval(object):
         # that it's in range 1-31
 
         # changed in 3.20
-        if interval_value not in ["LastDay", "Last", "First"]:
+        # changed in 3.21 https://help.tableau.com/current/api/rest_api/en-us/REST/rest_api_ref.htm#create_cloud_extract_refresh_task # noqa
+        if interval_value not in ["LastDay", "Last", "First", "Second", "Third", "Fourth", "Fifth"]:
             try:
                 if not (1 <= int(interval_value) <= 31):
                     raise ValueError(error)
             except ValueError:
-                if interval_value not in ["LastDay", "Last", "First"]:
+                if interval_value not in ["LastDay", "Last", "First", "Second", "Third", "Fourth", "Fifth"]:
                     raise ValueError(error)
 
         self._interval = str(interval_value)
