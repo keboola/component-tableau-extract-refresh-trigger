@@ -138,7 +138,8 @@ class Component(KBCEnvHandler):
     def get_all_datasource_refresh_tasks(self):
         # filter only datasource refresh tasks
         tasks = list(tsc.Pager(TaskCustom(self.server)))
-        return [task for task in tasks if task.target.type == 'datasource']
+        logging.debug(F'Found tasks: {tasks}')
+        return [task for task in tasks if task.target is not None and task.target.type == 'datasource']
 
     def validate_dataset_names(self, all_ds, datasources):
         conf_ds_names = dict()
