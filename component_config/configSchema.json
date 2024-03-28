@@ -78,7 +78,7 @@
     "datasources": {
       "type": "array",
       "title": "Tableau datasources",
-      "description": "List of datasources with extracts to trigger. Note that there must be appropriate tasks/schedules set for all these sources otherwise the execution will fail",
+      "description": "List of published datasources with extracts to trigger. Note that there must be appropriate tasks/schedules set for all these sources otherwise the execution will fail",
       "items": {
         "format": "grid",
         "type": "object",
@@ -127,6 +127,42 @@
           }
         }
       }
+    },
+    "workbooks": {
+      "type": "array",
+      "title": "Tableau workbooks",
+      "description": "List of workbooks which embedded datasources will be refreshed.",
+      "items": {
+        "format": "grid",
+        "type": "object",
+        "title": "Workbook",
+        "required": [
+          "name",
+          "tag",
+          "luid"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Workbook name.",
+            "description": "<b>Required</b> Workbook name as found in Tableau.",
+            "propertyOrder": 1000
+          },
+          "tag": {
+            "type": "string",
+            "title": "Workbook tag.",
+            "description": "Optional workbook tag as found in Tableau.",
+            "propertyOrder": 2000
+          },
+          "luid": {
+            "type": "string",
+            "title": "Tableu server unique LUID of the workbook (as represented via API)",
+            "description": "Optional unique datasource identifier i.e. xx12-3324-1323, available via API. This ensures unique identification of the workbook. If specified, the 'tag' parameter is ignored. Fill this in after the first execution. The LUID will be printed in the component job log.",
+            "propertyOrder": 3000
+          }
+        }
+      }
     }
+
   }
 }

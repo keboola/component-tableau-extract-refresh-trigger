@@ -25,6 +25,7 @@ KEY_POLL_MODE = 'poll_mode'
 KEY_DS_NAME = 'name'
 KEY_DS_TYPE = 'type'
 KEY_DATASOURCES = 'datasources'
+KEY_WORKBOOKS = 'workbooks'
 KEY_SITE_ID = 'site_id'
 
 KEY_AUTH_TYPE = 'authentication_type'
@@ -96,30 +97,40 @@ class Component(KBCEnvHandler):
             executed_jobs = dict()
 
             data_sources = params[KEY_DATASOURCES]
-            # tasks
-            # filter only datasource refresh tasks
-            logging.info('Validating extract names...')
+            if data_sources:
+                # tasks
+                # filter only datasource refresh tasks
+                logging.info('Validating extract names...')
 
-            all_ds, validation_errors = self._get_all_ds_by_filter(data_sources)
-            if validation_errors:
-                for err in validation_errors:
-                    logging.exception(err)
-                exit(1)
-            logging.debug(F'recognized datasets: {all_ds}')
-            ds_to_refresh = self.validate_dataset_names(all_ds, data_sources)
+                all_ds, validation_errors = self._get_all_ds_by_filter("datasources", data_sources)
+                logging.debug(F'Recognized datasets: {all_ds}')
 
-            tasks = self.get_all_datasource_refresh_tasks()
-            # get all datasources for tasks
-            logging.info('Retrieving extract tasks and validating extract types...')
-            ds_tasks = self.get_all_ds_for_tasks(tasks, all_ds)
-            logging.debug(F"Found tasks: {ds_tasks}")
-            self.validate_dataset_types(ds_tasks, ds_to_refresh)
+                if validation_errors:
+                    for err in validation_errors:
+                        logging.exception(err)
+                    exit(1)
+                ds_to_refresh = self.validate_dataset_names(all_ds, data_sources)
 
-            for ds in data_sources:
-                task = ds_tasks[ds[KEY_DS_NAME]][ds[KEY_DS_TYPE].lower()]
-                logging.info(F'Triggering extract for: "{ds[KEY_DS_NAME]}" with LUID: "{task.target.id}""')
-                job_id = self._run_task(task)
-                executed_jobs[ds[KEY_DS_NAME]] = job_id
+                tasks = self.get_all_datasource_refresh_tasks()
+                # get all datasources for tasks
+                logging.info('Retrieving extract tasks and validating extract types...')
+                ds_tasks = self.get_all_ds_for_tasks(tasks, all_ds)
+                logging.debug(F"Found datasource tasks: {ds_tasks}")
+                self.validate_dataset_types(ds_tasks, ds_to_refresh)
+
+                for ds in data_sources:
+                    task = ds_tasks[ds[KEY_DS_NAME]][ds[KEY_DS_TYPE].lower()]
+                    logging.info(F'Triggering extract for: "{ds[KEY_DS_NAME]}" with LUID: "{task.target.id}""')
+                    job_id = self._run_task(task)
+                    executed_jobs[ds[KEY_DS_NAME]] = job_id
+
+            workbooks = params[KEY_WORKBOOKS]
+            if workbooks:
+                all_wb, validation_errors = self._get_all_ds_by_filter("workbooks", workbooks)
+                for wb in all_wb:
+                    logging.info(F'Triggering extract for: "{wb.name}" with LUID: "{wb.id}""')
+                    job = self.server.workbooks.refresh(wb)
+                    executed_jobs[wb.name] = job.id
 
             # poll job statuses
             if params.get(KEY_POLL_MODE):
@@ -191,17 +202,17 @@ class Component(KBCEnvHandler):
         if failed_jobs:
             raise RuntimeError(F'Some jobs did not finish properly: {failed_jobs}')
 
-    def _get_all_ds_by_filter(self, data_sources):
+    def _get_all_ds_by_filter(self, kind, data_sources):
         all_ds = list()
         validation_errors = list()
         for ds_filter in data_sources:
             # if luid specified get the source
             if ds_filter.get(KEY_LUID):
-                res = self.server.datasources.get_by_id(ds_filter[KEY_LUID])
+                res = getattr(self.server, kind).get_by_id(ds_filter[KEY_LUID])
                 ds = [res] if res else []
 
             else:
-                ds = self._get_all_datasources_by_filter(ds_filter[KEY_NAME], ds_filter.get(KEY_TAG))
+                ds = self._get_all_datasources_by_filter(kind, ds_filter[KEY_NAME], ds_filter.get(KEY_TAG))
             all_ds.extend(ds)
             err = self._validate_ds_result(ds_filter, ds)
             if err:
@@ -233,16 +244,18 @@ class Component(KBCEnvHandler):
                        F"set more specific tag or use LUID. The results are: {self._str_ds(ds)}"
         return ds_error
 
-    def _get_all_datasources_by_filter(self, name, tag):
+    def _get_all_datasources_by_filter(self, kind, name, tag):
         req_option = tsc.RequestOptions()
         req_option.filter.add(tsc.Filter(tsc.RequestOptions.Field.Name,
                                          tsc.RequestOptions.Operator.Equals,
+
                                          name))
         if tag:
             req_option.filter.add(tsc.Filter(tsc.RequestOptions.Field.Tags,
                                              tsc.RequestOptions.Operator.Equals,
                                              tag))
-        datasource_items = list(tsc.Pager(self.server.datasources, req_option))
+
+        datasource_items = list(tsc.Pager(getattr(self.server, kind), req_option))
         return datasource_items
 
 

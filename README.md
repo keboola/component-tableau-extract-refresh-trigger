@@ -74,6 +74,32 @@ to ensure unique match, since there may be more datasources with the same name a
 Refresh type of the task that is specified for the data source. If the specified type of the refresh task is not defined, 
 the job will fail.
 
+## Tableau workbook specification
+
+To refresh an embedded data source in a workbook.
+
+**Steps to set up the data source:**
+
+1. Define workbook name and optionally a tag.
+2. After first run, look for the LUID outputted in the job log.
+3. Set up LUID parameter to fix the unique identification of the workbook.
+
+### Workbook name
+
+Name of the workbook as displayed in the UI. 
+**NOTE** This may not be unique. If there's more workbooks with the same name found the trigger will fail and list of the available,
+sources and its' eventual tags will be displayed in the job log. In such case you will need to add a tag to disambiguate.  
+
+### Workbook Tag 
+
+Optional parameter defining a data source tag as found in Tableau. Use this to disambiguate the data source if there's 
+more data sources with a same name.
+
+### Tableu server unique LUID
+
+Optional unique datasource identifier i.e. xx12-3324-1323,
+available via API. This ensures unique identification of the workbook. If specified, the `tag` parameter is ignored.
+
 
 
 ![Tableau extract](docs/imgs/extract.png)
