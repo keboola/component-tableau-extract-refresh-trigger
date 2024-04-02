@@ -124,7 +124,7 @@ class Component(KBCEnvHandler):
                     job_id = self._run_task(task)
                     executed_jobs[ds[KEY_DS_NAME]] = job_id
 
-            workbooks = params.get(KEY_WORKBOOKS)
+            workbooks = params.get(KEY_WORKBOOKS, False)
             if workbooks:
                 all_wb, validation_errors = self._get_all_ds_by_filter("workbooks", workbooks)
                 for wb in all_wb:
