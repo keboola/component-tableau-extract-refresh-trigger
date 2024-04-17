@@ -75,6 +75,17 @@
         ]
       }
     },
+    "continue_on_error": {
+      "type": "boolean",
+      "title": "Continue on error",
+      "description": "If set to true, the component will continue with refresh of other data sources or workbooks even if the current one fails.",
+      "propertyOrder": 465,
+      "enum": [
+        false,
+        true
+      ],
+      "default": false
+    },
     "datasources": {
       "type": "array",
       "title": "Tableau datasources",
