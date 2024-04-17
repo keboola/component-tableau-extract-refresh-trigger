@@ -5,6 +5,7 @@ Template Component main class.
 import logging
 import os
 import sys
+import time
 
 import tableauserverclient as tsc
 import xmltodict
@@ -212,6 +213,7 @@ class Component(KBCEnvHandler):
 
                     if int(job.finish_code) > 0:  # job failed
                         failed_jobs[ds_name] = job
+            time.sleep(60)   # preventing too many requests error
 
         if failed_jobs:
             raise RuntimeError(F'Some jobs did not finish properly: {failed_jobs}')
