@@ -5,6 +5,7 @@ Template Component main class.
 import logging
 import os
 import sys
+import time
 
 import tableauserverclient as tsc
 import xmltodict
@@ -27,6 +28,7 @@ KEY_DS_TYPE = 'type'
 KEY_DATASOURCES = 'datasources'
 KEY_WORKBOOKS = 'workbooks'
 KEY_SITE_ID = 'site_id'
+KEY_CONTINUE_ON_ERROR = 'continue_on_error'
 
 KEY_AUTH_TYPE = 'authentication_type'
 MANDATORY_PARS = [KEY_API_PASS, KEY_USER_NAME, KEY_DATASOURCES, KEY_ENDPOINT]
@@ -92,6 +94,7 @@ class Component(KBCEnvHandler):
         Main execution code
         '''
         params = self.cfg_params  # noqa
+        continue_on_error = params.get(KEY_CONTINUE_ON_ERROR, False)
 
         with self.server.auth.sign_in(self.auth):
             executed_jobs = dict()
@@ -121,16 +124,28 @@ class Component(KBCEnvHandler):
                 for ds in data_sources:
                     task = ds_tasks[ds[KEY_DS_NAME]][ds[KEY_DS_TYPE].lower()]
                     logging.info(F'Triggering extract for: "{ds[KEY_DS_NAME]}" with LUID: "{task.target.id}""')
-                    job_id = self._run_task(task)
-                    executed_jobs[ds[KEY_DS_NAME]] = job_id
+                    try:
+                        job_id = self._run_task(task)
+                        executed_jobs[ds[KEY_DS_NAME]] = job_id
+                    except Exception as ex:
+                        if continue_on_error:
+                            logging.warning(F'Failed to trigger extract for dataset: {ds[KEY_DS_NAME]}. {ex}')
+                        else:
+                            raise ex
 
             workbooks = params.get(KEY_WORKBOOKS, False)
             if workbooks:
                 all_wb, validation_errors = self._get_all_ds_by_filter("workbooks", workbooks)
                 for wb in all_wb:
                     logging.info(F'Triggering extract for: "{wb.name}" with LUID: "{wb.id}""')
-                    job = self.server.workbooks.refresh(wb)
-                    executed_jobs[wb.name] = job.id
+                    try:
+                        job = self.server.workbooks.refresh(wb)
+                        executed_jobs[wb.name] = job.id
+                    except Exception as ex:
+                        if continue_on_error:
+                            logging.warning(F'Failed to trigger extract for workbook: {wb.name}. {ex}')
+                        else:
+                            raise ex
 
             # poll job statuses
             if params.get(KEY_POLL_MODE):
@@ -198,6 +213,7 @@ class Component(KBCEnvHandler):
 
                     if int(job.finish_code) > 0:  # job failed
                         failed_jobs[ds_name] = job
+            time.sleep(60)   # preventing too many requests error
 
         if failed_jobs:
             raise RuntimeError(F'Some jobs did not finish properly: {failed_jobs}')
