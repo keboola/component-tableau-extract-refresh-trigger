@@ -1,8 +1,9 @@
 from pip._internal.utils import logging
 from tableauserverclient import MissingRequiredFieldError
-from tableauserverclient.server import PaginationItem, RequestFactory
+from tableauserverclient.server import RequestFactory
 from tableauserverclient.server.endpoint import Tasks
 from tableauserverclient.server.endpoint.endpoint import api
+from tableauserverclient.models import PaginationItem
 
 from tableau_custom.custom_daos import TaskItem
 
