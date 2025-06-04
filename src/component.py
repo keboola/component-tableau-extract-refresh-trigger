@@ -4,7 +4,6 @@ Template Component main class.
 '''
 import logging
 import os
-import sys
 import time
 
 import tableauserverclient as tsc
