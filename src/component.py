@@ -9,7 +9,7 @@ import time
 
 import tableauserverclient as tsc
 import xmltodict
-from kbc.env_handler import KBCEnvHandler
+from keboola.component import ComponentBase, UserException
 
 # configuration variables
 from tableau_custom.endpoints.tasks_endpoint import TaskCustom
@@ -38,10 +38,10 @@ APP_VERSION = '0.0.1'
 logger = logging.getLogger('tableau.endpoint.tasks')
 
 
-class Component(KBCEnvHandler):
+class Component(ComponentBase):
 
-    def __init__(self, debug=False):
-        KBCEnvHandler.__init__(self, MANDATORY_PARS, )
+    def __init__(self):
+        super().__init__(required_parameters=MANDATORY_PARS)
         # override debug from config
         if self.cfg_params.get('debug'):
             debug = True
@@ -279,13 +279,13 @@ class Component(KBCEnvHandler):
         Main entrypoint
 """
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        debug = sys.argv[1]
-    else:
-        debug = False
     try:
-        comp = Component(debug)
-        comp.run()
-    except Exception as e:
-        logging.exception(e)
+        comp = Component()
+        # this triggers the run method by default and is controlled by the configuration.action parameter
+        comp.execute_action()
+    except UserException as exc:
+        logging.exception(exc)
         exit(1)
+    except Exception as exc:
+        logging.exception(exc)
+        exit(2)

@@ -1,4 +1,4 @@
-https://bitbucket.org/kds_consulting_team/keboola-python-util-lib/get/0.2.5.zip#egg=kbc
+keboola.component
 mock
 freezegun
 tableauserverclient==0.32
