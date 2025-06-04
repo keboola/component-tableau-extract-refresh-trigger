@@ -4,11 +4,20 @@ ENV PYTHONIOENCODING utf-8
 COPY . /code/
 
 # install gcc to be able to build packages - e.g. required by regex, dateparser, also required for pandas
-RUN apt-get update && apt-get install -y build-essential
+RUN apt-get update && apt-get install -y curl ca-certificates
 
 RUN pip install flake8
 
 RUN pip install -r /code/requirements.txt
+
+# Download and install the intermediate CA certificate directly
+RUN curl -o /usr/local/share/ca-certificates/ThawteEVRSACAG2.crt \
+    https://cacerts.digicert.com/ThawteEVRSACAG2.crt \
+    && openssl x509 -inform der -in /usr/local/share/ca-certificates/ThawteEVRSACAG2.crt \
+       -out /usr/local/share/ca-certificates/ThawteEVRSACAG2.pem \
+    && mv /usr/local/share/ca-certificates/ThawteEVRSACAG2.pem \
+          /usr/local/share/ca-certificates/ThawteEVRSACAG2.crt \
+    && update-ca-certificates
 
 WORKDIR /code/
 
