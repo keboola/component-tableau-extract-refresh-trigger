@@ -61,12 +61,6 @@ class Component(ComponentBase):
             logging.getLogger('tableau.endpoint.jobs').setLevel(logging.ERROR)
             logging.getLogger('tableau.endpoint.datasources').setLevel(logging.ERROR)
 
-        try:
-            self.validate_config()
-        except ValueError as e:
-            logging.exception(e)
-            exit(1)
-
         site_id = self.cfg_params.get(KEY_SITE_ID) or ''
         # intialize instance parameteres
 
