@@ -45,6 +45,8 @@ class Component(ComponentBase):
 
     def __init__(self):
         super().__init__(required_parameters=MANDATORY_PARS)
+        self.cfg_params = self.configuration.parameters
+
         # override debug from config
         if self.cfg_params.get('debug'):
             debug = True
