@@ -47,11 +47,7 @@ class Component(ComponentBase):
         super().__init__(required_parameters=MANDATORY_PARS)
         self.cfg_params = self.configuration.parameters
 
-        # override debug from config
-        if self.cfg_params.get('debug'):
-            debug = True
-
-        log_level = logging.DEBUG if debug else logging.INFO
+        log_level = logging.DEBUG if self.cfg_params.get('debug') else logging.INFO
         # setup GELF if available
         if os.getenv('KBC_LOGGER_ADDR', None):
             self.set_gelf_logger(log_level)
@@ -60,7 +56,7 @@ class Component(ComponentBase):
         logging.info('Running version %s', APP_VERSION)
         logging.info('Loading configuration...')
 
-        if not debug:
+        if not self.cfg_params.get('debug'):
             # suppress info logging on the Tableau endpoints
             logging.getLogger('tableau.endpoint.jobs').setLevel(logging.ERROR)
             logging.getLogger('tableau.endpoint.datasources').setLevel(logging.ERROR)
