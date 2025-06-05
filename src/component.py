@@ -19,6 +19,8 @@ KEY_TAG = 'tag'
 KEY_NAME = 'name'
 KEY_LUID = 'luid'
 KEY_API_PASS = '#password'
+KEY_TOKEN_NAME = 'token_name'
+KEY_TOKEN = '#token_secret'
 KEY_USER_NAME = 'user'
 KEY_ENDPOINT = 'endpoint'
 KEY_POLL_MODE = 'poll_mode'
@@ -30,7 +32,9 @@ KEY_SITE_ID = 'site_id'
 KEY_CONTINUE_ON_ERROR = 'continue_on_error'
 
 KEY_AUTH_TYPE = 'authentication_type'
-MANDATORY_PARS = [KEY_API_PASS, KEY_USER_NAME, KEY_DATASOURCES, KEY_ENDPOINT]
+AUTH_NAMES = [KEY_USER_NAME, KEY_TOKEN_NAME]
+AUTH_SECRETS = [KEY_API_PASS, KEY_TOKEN]
+MANDATORY_PARS = [AUTH_NAMES, AUTH_SECRETS, KEY_DATASOURCES, KEY_ENDPOINT]
 
 APP_VERSION = '0.0.1'
 
@@ -72,8 +76,8 @@ class Component(ComponentBase):
             self.auth = tsc.TableauAuth(self.cfg_params[KEY_USER_NAME], self.cfg_params[KEY_API_PASS],
                                         site_id=site_id)
         elif self.cfg_params.get(KEY_AUTH_TYPE) == "Personal Access Token":
-            self.auth = tsc.PersonalAccessTokenAuth(token_name=self.cfg_params['token_name'],
-                                                    personal_access_token=self.cfg_params['#token_secret'],
+            self.auth = tsc.PersonalAccessTokenAuth(token_name=self.cfg_params[KEY_TOKEN_NAME],
+                                                    personal_access_token=self.cfg_params[KEY_TOKEN],
                                                     site_id=site_id)
         api_version = self.cfg_params.get('api_version', 'use_server_version')
         if api_version == 'use_server_version':
