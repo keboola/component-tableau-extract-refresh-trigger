@@ -24,4 +24,9 @@ WORKDIR /code/
 # Set the PYTHONWARNINGS environment variable
 ENV PYTHONWARNINGS "ignore::UserWarning:_distutils_hack"
 
+# Set SSL certificate environment variables to ensure Python uses system certificates
+ENV REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
+ENV SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt"
+ENV CURL_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
+
 CMD ["python", "-u", "/code/src/component.py"]
