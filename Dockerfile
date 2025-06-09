@@ -10,13 +10,14 @@ RUN pip install flake8
 
 RUN pip install -r /code/requirements.txt
 
-# Download and install the intermediate CA certificate directly
-RUN curl -o /usr/local/share/ca-certificates/ThawteEVRSACAG2.crt \
+# Download and install the full certificate chain
+RUN curl -o /tmp/ThawteEVRSACAG2.crt \
     https://cacerts.digicert.com/ThawteEVRSACAG2.crt \
-    && openssl x509 -inform der -in /usr/local/share/ca-certificates/ThawteEVRSACAG2.crt \
-       -out /usr/local/share/ca-certificates/ThawteEVRSACAG2.pem \
-    && mv /usr/local/share/ca-certificates/ThawteEVRSACAG2.pem \
-          /usr/local/share/ca-certificates/ThawteEVRSACAG2.crt \
+    && openssl x509 -inform der -in /tmp/ThawteEVRSACAG2.crt \
+       -out /usr/local/share/ca-certificates/ThawteEVRSACAG2.crt \
+    && rm /tmp/ThawteEVRSACAG2.crt \
+    && curl -o /usr/local/share/ca-certificates/DigiCertGlobalRootCA.crt \
+       https://cacerts.digicert.com/DigiCertGlobalRootCA.crt.pem \
     && update-ca-certificates
 
 WORKDIR /code/
