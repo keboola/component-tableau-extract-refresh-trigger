@@ -4,12 +4,11 @@ Template Component main class.
 '''
 import logging
 import os
-import sys
 import time
 
 import tableauserverclient as tsc
 import xmltodict
-from kbc.env_handler import KBCEnvHandler
+from keboola.component import ComponentBase, UserException
 
 # configuration variables
 from tableau_custom.endpoints.tasks_endpoint import TaskCustom
@@ -20,6 +19,8 @@ KEY_TAG = 'tag'
 KEY_NAME = 'name'
 KEY_LUID = 'luid'
 KEY_API_PASS = '#password'
+KEY_TOKEN_NAME = 'token_name'
+KEY_TOKEN = '#token_secret'
 KEY_USER_NAME = 'user'
 KEY_ENDPOINT = 'endpoint'
 KEY_POLL_MODE = 'poll_mode'
@@ -31,22 +32,22 @@ KEY_SITE_ID = 'site_id'
 KEY_CONTINUE_ON_ERROR = 'continue_on_error'
 
 KEY_AUTH_TYPE = 'authentication_type'
-MANDATORY_PARS = [KEY_API_PASS, KEY_USER_NAME, KEY_DATASOURCES, KEY_ENDPOINT]
+AUTH_NAMES = [KEY_USER_NAME, KEY_TOKEN_NAME]
+AUTH_SECRETS = [KEY_API_PASS, KEY_TOKEN]
+MANDATORY_PARS = [AUTH_NAMES, AUTH_SECRETS, KEY_DATASOURCES, KEY_ENDPOINT]
 
 APP_VERSION = '0.0.1'
 
 logger = logging.getLogger('tableau.endpoint.tasks')
 
 
-class Component(KBCEnvHandler):
+class Component(ComponentBase):
 
-    def __init__(self, debug=False):
-        KBCEnvHandler.__init__(self, MANDATORY_PARS, )
-        # override debug from config
-        if self.cfg_params.get('debug'):
-            debug = True
+    def __init__(self):
+        super().__init__(required_parameters=MANDATORY_PARS)
+        self.cfg_params = self.configuration.parameters
 
-        log_level = logging.DEBUG if debug else logging.INFO
+        log_level = logging.DEBUG if self.cfg_params.get('debug') else logging.INFO
         # setup GELF if available
         if os.getenv('KBC_LOGGER_ADDR', None):
             self.set_gelf_logger(log_level)
@@ -55,16 +56,10 @@ class Component(KBCEnvHandler):
         logging.info('Running version %s', APP_VERSION)
         logging.info('Loading configuration...')
 
-        if not debug:
+        if not self.cfg_params.get('debug'):
             # suppress info logging on the Tableau endpoints
             logging.getLogger('tableau.endpoint.jobs').setLevel(logging.ERROR)
             logging.getLogger('tableau.endpoint.datasources').setLevel(logging.ERROR)
-
-        try:
-            self.validate_config()
-        except ValueError as e:
-            logging.exception(e)
-            exit(1)
 
         site_id = self.cfg_params.get(KEY_SITE_ID) or ''
         # intialize instance parameteres
@@ -73,8 +68,8 @@ class Component(KBCEnvHandler):
             self.auth = tsc.TableauAuth(self.cfg_params[KEY_USER_NAME], self.cfg_params[KEY_API_PASS],
                                         site_id=site_id)
         elif self.cfg_params.get(KEY_AUTH_TYPE) == "Personal Access Token":
-            self.auth = tsc.PersonalAccessTokenAuth(token_name=self.cfg_params['token_name'],
-                                                    personal_access_token=self.cfg_params['#token_secret'],
+            self.auth = tsc.PersonalAccessTokenAuth(token_name=self.cfg_params[KEY_TOKEN_NAME],
+                                                    personal_access_token=self.cfg_params[KEY_TOKEN],
                                                     site_id=site_id)
         api_version = self.cfg_params.get('api_version', 'use_server_version')
         if api_version == 'use_server_version':
@@ -279,13 +274,13 @@ class Component(KBCEnvHandler):
         Main entrypoint
 """
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        debug = sys.argv[1]
-    else:
-        debug = False
     try:
-        comp = Component(debug)
-        comp.run()
-    except Exception as e:
-        logging.exception(e)
+        comp = Component()
+        # this triggers the run method by default and is controlled by the configuration.action parameter
+        comp.execute_action()
+    except UserException as exc:
+        logging.exception(exc)
         exit(1)
+    except Exception as exc:
+        logging.exception(exc)
+        exit(2)
