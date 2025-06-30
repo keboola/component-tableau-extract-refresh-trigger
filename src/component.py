@@ -36,6 +36,9 @@ AUTH_NAMES = [KEY_USER_NAME, KEY_TOKEN_NAME]
 AUTH_SECRETS = [KEY_API_PASS, KEY_TOKEN]
 MANDATORY_PARS = [AUTH_NAMES, AUTH_SECRETS, KEY_DATASOURCES, KEY_ENDPOINT]
 
+KEY_LUID_REQUIRED = 'luid_required'
+KEY_POLL_MODE_DISABLED = 'poll_mode_disabled'
+
 APP_VERSION = '0.0.1'
 
 logger = logging.getLogger('tableau.endpoint.tasks')
@@ -90,6 +93,24 @@ class Component(ComponentBase):
         '''
         params = self.cfg_params  # noqa
         continue_on_error = params.get(KEY_CONTINUE_ON_ERROR, False)
+
+        # CSAS has set LUID and name as required fields
+        # 'luid_required' is set to true as stack parameter for cs and cs-test
+        luid_required = params.get(KEY_LUID_REQUIRED, False)
+        if luid_required:
+            for ds in params[KEY_DATASOURCES]:
+                self._validate_required(ds.get(KEY_NAME), 'Name')
+                self._validate_required(ds.get(KEY_LUID), 'LUID')
+            for wb in params[KEY_WORKBOOKS]:
+                self._validate_required(wb.get(KEY_NAME), 'Name')
+                self._validate_required(wb.get(KEY_LUID), 'LUID')
+
+        # CSAS has set poll to false
+        # 'poll_off' is set to true as stack parameter for cs and cs-test
+        poll_mode_disabled = params.get(KEY_POLL_MODE_DISABLED, False)
+        if poll_mode_disabled:
+            if params.get(KEY_POLL_MODE):
+                raise ValueError('Poll must be set to false.')
 
         with self.server.auth.sign_in(self.auth):
             executed_jobs = dict()
@@ -148,6 +169,10 @@ class Component(ComponentBase):
                 self._wait_for_finish(executed_jobs)
 
         logging.info('Trigger finished successfully!')
+
+    def _validate_required(self, value: str, field_name: str) -> None:
+        if not value or value == "":
+            raise ValueError(f'{field_name} is required.')
 
     def _run_task(self, task):
         response = self.server.tasks.run(task)
