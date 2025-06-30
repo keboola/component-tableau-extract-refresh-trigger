@@ -67,6 +67,23 @@ class Component(ComponentBase):
         site_id = self.cfg_params.get(KEY_SITE_ID) or ''
         # intialize instance parameteres
 
+        # If 'luid_required' is set to true, the component will validate that the LUID and Name
+        # is present for all datasources and workbooks
+        luid_required = self.cfg_params.get(KEY_LUID_REQUIRED, False)
+        if luid_required:
+            for ds in self.cfg_params[KEY_DATASOURCES]:
+                self._validate_required(ds.get(KEY_NAME), 'Name')
+                self._validate_required(ds.get(KEY_LUID), 'LUID')
+            for wb in self.cfg_params[KEY_WORKBOOKS]:
+                self._validate_required(wb.get(KEY_NAME), 'Name')
+                self._validate_required(wb.get(KEY_LUID), 'LUID')
+
+        # If 'poll_mode_disabled' is set to true, the component will not poll the job statuses
+        poll_mode_disabled = self.cfg_params.get(KEY_POLL_MODE_DISABLED, False)
+        if poll_mode_disabled:
+            if self.cfg_params.get(KEY_POLL_MODE):
+                raise ValueError('Poll must be set to false.')
+
         if self.cfg_params.get(KEY_AUTH_TYPE, 'user/password') == 'user/password':
             self.auth = tsc.TableauAuth(self.cfg_params[KEY_USER_NAME], self.cfg_params[KEY_API_PASS],
                                         site_id=site_id)
@@ -93,24 +110,6 @@ class Component(ComponentBase):
         '''
         params = self.cfg_params  # noqa
         continue_on_error = params.get(KEY_CONTINUE_ON_ERROR, False)
-
-        # CSAS has set LUID and name as required fields
-        # 'luid_required' is set to true as stack parameter for cs and cs-test
-        luid_required = params.get(KEY_LUID_REQUIRED, False)
-        if luid_required:
-            for ds in params[KEY_DATASOURCES]:
-                self._validate_required(ds.get(KEY_NAME), 'Name')
-                self._validate_required(ds.get(KEY_LUID), 'LUID')
-            for wb in params[KEY_WORKBOOKS]:
-                self._validate_required(wb.get(KEY_NAME), 'Name')
-                self._validate_required(wb.get(KEY_LUID), 'LUID')
-
-        # CSAS has set poll to false
-        # 'poll_off' is set to true as stack parameter for cs and cs-test
-        poll_mode_disabled = params.get(KEY_POLL_MODE_DISABLED, False)
-        if poll_mode_disabled:
-            if params.get(KEY_POLL_MODE):
-                raise ValueError('Poll must be set to false.')
 
         with self.server.auth.sign_in(self.auth):
             executed_jobs = dict()
