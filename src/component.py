@@ -70,24 +70,20 @@ class Component(ComponentBase):
 
         # If 'luid_required' is set to true, the component will validate that the LUID and Name
         # is present for all datasources and workbooks
-        try:
-            luid_required = self.image_params.get(KEY_LUID_REQUIRED, False)
-            if luid_required:
-                for ds in self.cfg_params[KEY_DATASOURCES]:
-                    self._validate_required(ds.get(KEY_NAME), 'Name')
-                    self._validate_required(ds.get(KEY_LUID), 'LUID')
-                for wb in self.cfg_params[KEY_WORKBOOKS]:
-                    self._validate_required(wb.get(KEY_NAME), 'Name')
-                    self._validate_required(wb.get(KEY_LUID), 'LUID')
+        luid_required = self.image_params.get(KEY_LUID_REQUIRED, False)
+        if luid_required:
+            for ds in self.cfg_params[KEY_DATASOURCES]:
+                self._validate_required(ds.get(KEY_NAME), 'Name')
+                self._validate_required(ds.get(KEY_LUID), 'LUID')
+            for wb in self.cfg_params[KEY_WORKBOOKS]:
+                self._validate_required(wb.get(KEY_NAME), 'Name')
+                self._validate_required(wb.get(KEY_LUID), 'LUID')
 
-            # If 'poll_mode_disabled' is set to true, the component will not poll the job statuses
-            poll_mode_disabled = self.image_params.get(KEY_POLL_MODE_DISABLED, False)
-            if poll_mode_disabled:
-                if self.cfg_params.get(KEY_POLL_MODE):
-                    raise ValueError('Poll must be set to false.')
-        except Exception as e:
-            logging.error(e)
-            raise e
+        # If 'poll_mode_disabled' is set to true, the component will not poll the job statuses
+        poll_mode_disabled = self.image_params.get(KEY_POLL_MODE_DISABLED, False)
+        if poll_mode_disabled:
+            if self.cfg_params.get(KEY_POLL_MODE):
+                raise UserException('Poll must be set to false.')
 
         if self.cfg_params.get(KEY_AUTH_TYPE, 'user/password') == 'user/password':
             self.auth = tsc.TableauAuth(self.cfg_params[KEY_USER_NAME], self.cfg_params[KEY_API_PASS],
@@ -176,7 +172,7 @@ class Component(ComponentBase):
 
     def _validate_required(self, value: str, field_name: str) -> None:
         if not value or value == "":
-            raise ValueError(f'{field_name} is required.')
+            raise UserException(f'{field_name} is required.')
 
     def _run_task(self, task):
         response = self.server.tasks.run(task)
