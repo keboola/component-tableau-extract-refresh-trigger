@@ -36,6 +36,9 @@ AUTH_NAMES = [KEY_USER_NAME, KEY_TOKEN_NAME]
 AUTH_SECRETS = [KEY_API_PASS, KEY_TOKEN]
 MANDATORY_PARS = [AUTH_NAMES, AUTH_SECRETS, KEY_DATASOURCES, KEY_ENDPOINT]
 
+KEY_LUID_REQUIRED = 'luid_required'
+KEY_POLL_MODE_DISABLED = 'poll_mode_disabled'
+
 APP_VERSION = '0.0.1'
 
 logger = logging.getLogger('tableau.endpoint.tasks')
@@ -46,6 +49,7 @@ class Component(ComponentBase):
     def __init__(self):
         super().__init__(required_parameters=MANDATORY_PARS)
         self.cfg_params = self.configuration.parameters
+        self.image_params = self.configuration.image_parameters
 
         log_level = logging.DEBUG if self.cfg_params.get('debug') else logging.INFO
         # setup GELF if available
@@ -63,6 +67,23 @@ class Component(ComponentBase):
 
         site_id = self.cfg_params.get(KEY_SITE_ID) or ''
         # intialize instance parameteres
+
+        # If 'luid_required' is set to true, the component will validate that the LUID and Name
+        # is present for all datasources and workbooks
+        luid_required = self.image_params.get(KEY_LUID_REQUIRED, False)
+        if luid_required:
+            for ds in self.cfg_params[KEY_DATASOURCES]:
+                self._validate_required(ds.get(KEY_NAME), 'Name')
+                self._validate_required(ds.get(KEY_LUID), 'LUID')
+            for wb in self.cfg_params[KEY_WORKBOOKS]:
+                self._validate_required(wb.get(KEY_NAME), 'Name')
+                self._validate_required(wb.get(KEY_LUID), 'LUID')
+
+        # If 'poll_mode_disabled' is set to true, the component will not poll the job statuses
+        poll_mode_disabled = self.image_params.get(KEY_POLL_MODE_DISABLED, False)
+        if poll_mode_disabled:
+            if self.cfg_params.get(KEY_POLL_MODE):
+                raise UserException('Poll must be set to false.')
 
         if self.cfg_params.get(KEY_AUTH_TYPE, 'user/password') == 'user/password':
             self.auth = tsc.TableauAuth(self.cfg_params[KEY_USER_NAME], self.cfg_params[KEY_API_PASS],
@@ -148,6 +169,10 @@ class Component(ComponentBase):
                 self._wait_for_finish(executed_jobs)
 
         logging.info('Trigger finished successfully!')
+
+    def _validate_required(self, value: str, field_name: str) -> None:
+        if not value or value == "":
+            raise UserException(f'{field_name} is required.')
 
     def _run_task(self, task):
         response = self.server.tasks.run(task)
