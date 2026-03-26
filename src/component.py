@@ -75,7 +75,7 @@ class Component(ComponentBase):
             for ds in self.cfg_params[KEY_DATASOURCES]:
                 self._validate_required(ds.get(KEY_NAME), "Name")
                 self._validate_required(ds.get(KEY_LUID), "LUID")
-            for wb in self.cfg_params[KEY_WORKBOOKS]:
+            for wb in self.cfg_params.get(KEY_WORKBOOKS, []):
                 self._validate_required(wb.get(KEY_NAME), "Name")
                 self._validate_required(wb.get(KEY_LUID), "LUID")
 
