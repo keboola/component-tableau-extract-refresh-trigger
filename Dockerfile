@@ -1,14 +1,7 @@
-FROM python:3.12-slim
-ENV PYTHONIOENCODING utf-8
+FROM python:3.13-slim
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-COPY . /code/
-
-# install gcc to be able to build packages - e.g. required by regex, dateparser, also required for pandas
 RUN apt-get update && apt-get install -y curl ca-certificates
-
-RUN pip install flake8
-
-RUN pip install -r /code/requirements.txt
 
 # Download and install the full certificate chain
 RUN curl -o /tmp/ThawteEVRSACAG2.crt \
@@ -21,13 +14,20 @@ RUN curl -o /tmp/ThawteEVRSACAG2.crt \
     && update-ca-certificates
 
 WORKDIR /code/
+COPY pyproject.toml .
+COPY uv.lock .
+ENV UV_PROJECT_ENVIRONMENT="/usr/local/"
+RUN uv sync --all-groups --frozen
 
-# Set the PYTHONWARNINGS environment variable
-ENV PYTHONWARNINGS "ignore::UserWarning:_distutils_hack"
+COPY src/ src
+COPY tests/ tests
+COPY scripts/ scripts
+COPY deploy.sh .
 
-# Set SSL certificate environment variables to ensure Python uses system certificates
+ENV PYTHONIOENCODING="utf-8"
+ENV PYTHONWARNINGS="ignore::UserWarning:_distutils_hack"
 ENV REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
 ENV SSL_CERT_FILE="/etc/ssl/certs/ca-certificates.crt"
 ENV CURL_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
 
-CMD ["python", "-u", "/code/src/component.py"]
+CMD ["python", "-u", "src/component.py"]
