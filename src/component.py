@@ -113,7 +113,12 @@ class Component(ComponentBase):
         params = self.cfg_params  # noqa
         continue_on_error = params.get(KEY_CONTINUE_ON_ERROR, False)
 
-        with self.server.auth.sign_in(self.auth):
+        try:
+            sign_in_ctx = self.server.auth.sign_in(self.auth)
+        except tsc.FailedSignInError as ex:
+            raise UserException(f"Tableau authentication failed: {ex}") from ex
+
+        with sign_in_ctx:
             executed_jobs = dict()
 
             data_sources = params[KEY_DATASOURCES]
