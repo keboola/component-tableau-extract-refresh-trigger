@@ -1,4 +1,5 @@
 import logging
+
 from tableauserverclient import MissingRequiredFieldError
 from tableauserverclient.models import PaginationItem
 from tableauserverclient.server import RequestFactory
