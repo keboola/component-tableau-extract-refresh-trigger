@@ -75,7 +75,7 @@ class Component(ComponentBase):
             for ds in self.cfg_params[KEY_DATASOURCES]:
                 self._validate_required(ds.get(KEY_NAME), 'Name')
                 self._validate_required(ds.get(KEY_LUID), 'LUID')
-            for wb in self.cfg_params[KEY_WORKBOOKS]:
+            for wb in self.cfg_params.get(KEY_WORKBOOKS, []):
                 self._validate_required(wb.get(KEY_NAME), 'Name')
                 self._validate_required(wb.get(KEY_LUID), 'LUID')
 
@@ -125,9 +125,7 @@ class Component(ComponentBase):
                 logging.debug(F'Recognized datasets: {all_ds}')
 
                 if validation_errors:
-                    for err in validation_errors:
-                        logging.exception(err)
-                    exit(1)
+                    raise UserException('\n'.join(validation_errors))
                 ds_to_refresh = self.validate_dataset_names(all_ds, data_sources)
 
                 tasks = self.get_all_datasource_refresh_tasks()
@@ -194,7 +192,7 @@ class Component(ComponentBase):
         ds_names = [ds.name for ds in all_ds]
         inv_names = [nm for nm in conf_ds_names if nm not in ds_names]
         if inv_names:
-            raise ValueError(F'Some datasets do not exist! {inv_names}')
+            raise UserException(F'Some datasets do not exist! {inv_names}')
         return conf_ds_names
 
     def get_all_ds_for_tasks(self, tasks, all_ds):
@@ -219,8 +217,8 @@ class Component(ComponentBase):
         inv_ds = [{ds: param[ds]} for ds in param if not ds_tasks.get(ds, {}).get(param[ds].lower())]
 
         if inv_ds:
-            raise ValueError(F'Some datasets do not have the required refresh type task: {inv_ds}. '
-                             F'Please create the extract refresh of that type first.')
+            raise UserException(F'Some datasets do not have the required refresh type task: {inv_ds}. '
+                                F'Please create the extract refresh of that type first.')
 
     def _wait_for_finish(self, executed_jobs):
         remaining_jobs = executed_jobs.copy()
@@ -236,7 +234,7 @@ class Component(ComponentBase):
             time.sleep(60)   # preventing too many requests error
 
         if failed_jobs:
-            raise RuntimeError(F'Some jobs did not finish properly: {failed_jobs}')
+            raise UserException(F'Some jobs did not finish properly: {failed_jobs}')
 
     def _get_all_ds_by_filter(self, kind, data_sources):
         all_ds = list()
