@@ -1,0 +1,1 @@
+https://github.com/keboola/component-tableau-extract-refresh-trigger

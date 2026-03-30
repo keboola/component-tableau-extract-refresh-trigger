@@ -1,5 +1,0 @@
-keboola.component
-mock
-freezegun
-tableauserverclient==0.32
-xmltodict

@@ -1,0 +1,23 @@
+[project]
+name = "component-tableau-extract-refresh-trigger"
+dynamic = ["version"]
+requires-python = "~=3.13.0"
+dependencies = [
+    "keboola-component>=1.9.4",
+    "tableauserverclient>=0.32",
+    "xmltodict>=0.13",
+]
+
+[dependency-groups]
+dev = [
+    "mock>=5.0.0",
+    "freezegun>=1.0",
+    "pytest>=8.0",
+    "ruff>=0.9",
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+extend-select = ["I", "UP"]
