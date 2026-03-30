@@ -22,7 +22,6 @@ RUN uv sync --all-groups --frozen
 COPY src/ src
 COPY tests/ tests
 COPY scripts/ scripts
-COPY deploy.sh .
 
 ENV PYTHONIOENCODING="utf-8"
 ENV PYTHONWARNINGS="ignore::UserWarning:_distutils_hack"
