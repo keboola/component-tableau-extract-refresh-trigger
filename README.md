@@ -52,10 +52,12 @@ Name of the datasource with extract refresh tasks to trigger as displayed in the
 **NOTE** This may not be unique. If there's more sources with the same name found the trigger will fail and list of the available,
 sources and its' eventual tags will be displayed in the job log. In such case you will need to add a tag to disambiguate.  
 
+**IMPORTANT NOTE:** When no tag is specified, the component searches for **all** datasources matching the given name - including those that have tags assigned. If multiple results are found, the job will fail and list all matches with their tags in the job log. You must then either specify a `tag` to filter the results or use a `LUID` to uniquely identify the datasource.
+
 ### Data source Tag 
 
 Optional parameter defining a data source tag as found in Tableau. Use this to disambiguate the data source if there's 
-more data sources with a same name.
+more data sources with a same name. Note that the tag acts as an **additional filter** — it is not required. Omitting it returns all datasources with the matching name, regardless of whether they have tags.
 
 ### Tableu server unique LUID
 
@@ -90,10 +92,12 @@ Name of the workbook as displayed in the UI.
 **NOTE** This may not be unique. If there's more workbooks with the same name found the trigger will fail and list of the available,
 sources and its' eventual tags will be displayed in the job log. In such case you will need to add a tag to disambiguate.  
 
+**IMPORTANT NOTE:** When no tag is specified, the component searches for **all** workbooks matching the given name - including those that have tags assigned. If multiple results are found, the job will fail and list all matches with their tags in the job log. You must then either specify a `tag` to filter the results or use a `LUID` to uniquely identify the workbook.
+
 ### Workbook Tag 
 
-Optional parameter defining a data source tag as found in Tableau. Use this to disambiguate the data source if there's 
-more data sources with a same name.
+Optional parameter defining a workbook tag as found in Tableau. Use this to disambiguate the workbook if there's 
+more workbooks with the same name. Note that the tag acts as an **additional filter** — it is not required. Omitting it returns all workbooks with the matching name, regardless of whether they have tags.
 
 ### Tableu server unique LUID
 
