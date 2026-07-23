@@ -318,6 +318,15 @@ if __name__ == "__main__":
     except UserException as exc:
         logging.exception(exc)
         exit(1)
+    except tsc.FailedSignInError as exc:
+        # The Tableau Server Client library raises this for ANY API call that gets a 401,
+        # not only the initial sign-in (e.g. a session/token expiring mid-run during a long
+        # poll_mode wait). Only the initial sign-in was previously converted to a
+        # UserException (see run()); this is the same conversion for the rest of the
+        # component's lifecycle so a mid-run auth failure surfaces as a clear user error
+        # instead of an opaque internal error.
+        logging.exception(f"Tableau authentication failed: {exc}")
+        exit(1)
     except Exception as exc:
         logging.exception(exc)
         exit(2)
