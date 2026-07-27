@@ -257,7 +257,21 @@ class Component(ComponentBase):
         for ds_filter in data_sources:
             # if luid specified get the source
             if ds_filter.get(KEY_LUID):
-                res = getattr(self.server, kind).get_by_id(ds_filter[KEY_LUID])
+                try:
+                    res = getattr(self.server, kind).get_by_id(ds_filter[KEY_LUID])
+                except tsc.ServerResponseError as ex:
+                    # The Tableau REST API raises a 404xxx ServerResponseError (rather than
+                    # returning an empty/None result) when the configured LUID does not exist
+                    # on the server. That previously propagated uncaught all the way to the
+                    # entrypoint as an opaque internal error. Surface it as the same clear,
+                    # user-facing message already used a few lines below for the equivalent
+                    # "no result for this LUID" case, instead of a generic crash.
+                    if str(ex.code).startswith("404"):
+                        raise UserException(
+                            f"There is no result for specified LUID, the {kind} entry does not "
+                            f"exist: {ds_filter[KEY_LUID]}"
+                        ) from ex
+                    raise
                 ds = [res] if res else []
 
             else:
