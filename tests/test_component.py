@@ -96,6 +96,58 @@ class TestSignInErrorConversion(unittest.TestCase):
         self.assertIn("Tableau authentication failed", str(ctx.exception))
 
 
+class TestGetAllDsByFilterLuidNotFound(unittest.TestCase):
+    """``_get_all_ds_by_filter`` converts a 404 ``ServerResponseError`` on a LUID lookup
+    into a clear ``UserException`` instead of letting it crash as an opaque internal error.
+
+    The Tableau REST API raises ``ServerResponseError`` (code ``404006``) rather than
+    returning ``None``/empty when a configured LUID does not exist on the server. Before
+    this fix, ``get_by_id`` raising propagated all the way to the entrypoint and exited 2;
+    the ``_validate_ds_result`` "no result for specified LUID" message a few lines below
+    was effectively dead code for this exact case since the exception never let control
+    reach it.
+    """
+
+    def _component(self):
+        comp = Component.__new__(Component)  # bypass __init__ (needs a live server + datadir)
+        comp.server = mock.Mock()
+        return comp
+
+    def test_luid_not_found_raises_user_exception(self):
+        comp = self._component()
+        not_found = tsc.ServerResponseError("404006", "Resource Not Found", "Workbook could not be found.")
+        comp.server.workbooks.get_by_id.side_effect = not_found
+
+        with self.assertRaises(UserException) as ctx:
+            comp._get_all_ds_by_filter("workbooks", [{"name": "wb1", "luid": "does-not-exist"}])
+        self.assertIn("does-not-exist", str(ctx.exception))
+        # kind ("workbooks") is singularized in the message rather than interpolated verbatim.
+        self.assertIn("workbook entry", str(ctx.exception))
+        self.assertNotIn("workbooks entry", str(ctx.exception))
+
+    def test_non_404_server_response_error_still_propagates(self):
+        # Guards the classification: only the "not found" family is converted; any other
+        # ServerResponseError (e.g. a real server-side failure) must still surface as-is
+        # rather than being masked as a configuration problem.
+        comp = self._component()
+        server_error = tsc.ServerResponseError("500000", "Internal Server Error", "boom")
+        comp.server.datasources.get_by_id.side_effect = server_error
+
+        with self.assertRaises(tsc.ServerResponseError):
+            comp._get_all_ds_by_filter("datasources", [{"name": "ds1", "luid": "some-luid"}])
+
+    def test_luid_found_returns_result_unchanged(self):
+        # Happy path: an existing LUID is resolved exactly as before, no exception involved.
+        comp = self._component()
+        found = mock.Mock()
+        found.name = "wb1"  # must be set post-construction: Mock(name=...) sets the repr, not the attribute
+        comp.server.workbooks.get_by_id.return_value = found
+
+        all_ds, validation_errors = comp._get_all_ds_by_filter("workbooks", [{"name": "wb1", "luid": "some-luid"}])
+        self.assertEqual(all_ds, [found])
+        self.assertEqual(validation_errors, [])
+
+
 if __name__ == "__main__":
     # import sys;sys.argv = ['', 'Test.testName']
     unittest.main()
