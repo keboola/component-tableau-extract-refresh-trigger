@@ -121,6 +121,9 @@ class TestGetAllDsByFilterLuidNotFound(unittest.TestCase):
         with self.assertRaises(UserException) as ctx:
             comp._get_all_ds_by_filter("workbooks", [{"name": "wb1", "luid": "does-not-exist"}])
         self.assertIn("does-not-exist", str(ctx.exception))
+        # kind ("workbooks") is singularized in the message rather than interpolated verbatim.
+        self.assertIn("workbook entry", str(ctx.exception))
+        self.assertNotIn("workbooks entry", str(ctx.exception))
 
     def test_non_404_server_response_error_still_propagates(self):
         # Guards the classification: only the "not found" family is converted; any other

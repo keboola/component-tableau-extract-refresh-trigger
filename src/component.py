@@ -263,12 +263,13 @@ class Component(ComponentBase):
                     # The Tableau REST API raises a 404xxx ServerResponseError (rather than
                     # returning an empty/None result) when the configured LUID does not exist
                     # on the server. That previously propagated uncaught all the way to the
-                    # entrypoint as an opaque internal error. Surface it as the same clear,
-                    # user-facing message already used a few lines below for the equivalent
-                    # "no result for this LUID" case, instead of a generic crash.
+                    # entrypoint as an opaque internal error. Surface it as a clear, user-facing
+                    # message analogous to the not-found case _validate_ds_result already
+                    # handles a few lines below, instead of a generic crash.
                     if str(ex.code).startswith("404"):
+                        kind_singular = kind.rstrip("s")  # "datasources" -> "datasource", "workbooks" -> "workbook"
                         raise UserException(
-                            f"There is no result for specified LUID, the {kind} entry does not "
+                            f"There is no result for specified LUID, the {kind_singular} entry does not "
                             f"exist: {ds_filter[KEY_LUID]}"
                         ) from ex
                     raise
