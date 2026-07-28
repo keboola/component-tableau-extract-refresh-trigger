@@ -42,6 +42,9 @@ KEY_POLL_MODE_DISABLED = "poll_mode_disabled"
 
 APP_VERSION = "0.0.1"
 
+DEFAULT_MAX_POLL_DURATION_SECONDS = 7200
+MAX_AUTH_RETRIES = 3
+
 logger = logging.getLogger("tableau.endpoint.tasks")
 
 
@@ -75,7 +78,7 @@ class Component(ComponentBase):
             for ds in self.cfg_params[KEY_DATASOURCES]:
                 self._validate_required(ds.get(KEY_NAME), "Name")
                 self._validate_required(ds.get(KEY_LUID), "LUID")
-            for wb in (self.cfg_params.get(KEY_WORKBOOKS) or []):
+            for wb in self.cfg_params.get(KEY_WORKBOOKS) or []:
                 self._validate_required(wb.get(KEY_NAME), "Name")
                 self._validate_required(wb.get(KEY_LUID), "LUID")
 
@@ -228,15 +231,57 @@ class Component(ComponentBase):
                 f"Please create the extract refresh of that type first."
             )
 
+    def _re_authenticate(self) -> None:
+        logging.info("Re-authenticating to Tableau server...")
+        self.server.auth.sign_in(self.auth)
+        logging.info("Re-authentication successful.")
+
+    def _is_auth_error(self, ex: Exception) -> bool:
+        error_str = str(ex).lower()
+        return "sign in" in error_str or "401" in error_str or "unauthorized" in error_str
+
     def _wait_for_finish(self, executed_jobs):
         remaining_jobs = executed_jobs.copy()
         failed_jobs = dict()
+        max_duration = int(self.cfg_params.get("max_poll_duration_seconds", DEFAULT_MAX_POLL_DURATION_SECONDS))
+        start_time = time.monotonic()
+        consecutive_auth_failures = 0
+
         while remaining_jobs:
+            elapsed = time.monotonic() - start_time
+            if elapsed >= max_duration:
+                remaining_names = ", ".join(f"'{name}'" for name in remaining_jobs)
+                raise UserException(
+                    f"Polling timed out after {int(elapsed)}s. "
+                    f"Still waiting for: {remaining_names}. "
+                    f"The extract refresh may have completed on Tableau side. "
+                    f"Check Tableau directly or increase max_poll_duration_seconds (current: {max_duration})."
+                )
+
             for ds_name in list(remaining_jobs):
                 try:
                     job = self.server.jobs.get_by_id(executed_jobs[ds_name])
+                    consecutive_auth_failures = 0
                 except Exception as ex:
-                    logging.warning(f"Failed to get job status for '{ds_name}': {ex}")
+                    if self._is_auth_error(ex):
+                        consecutive_auth_failures += 1
+                        logging.warning(
+                            f"Auth error polling '{ds_name}' "
+                            f"(attempt {consecutive_auth_failures}/{MAX_AUTH_RETRIES}): {ex}"
+                        )
+                        if consecutive_auth_failures >= MAX_AUTH_RETRIES:
+                            raise UserException(
+                                f"Failed to re-authenticate to Tableau after {MAX_AUTH_RETRIES} attempts. "
+                                f"The extract refresh may have completed on Tableau side. "
+                                f"Please verify in Tableau and check your credentials."
+                            ) from ex
+                        try:
+                            self._re_authenticate()
+                        except Exception as auth_ex:
+                            logging.warning(f"Re-authentication failed: {auth_ex}")
+                        break
+                    else:
+                        logging.warning(f"Failed to get job status for '{ds_name}': {ex}")
                     continue
                 if int(job.finish_code) >= 0:
                     remaining_jobs.pop(ds_name, {})
@@ -246,9 +291,7 @@ class Component(ComponentBase):
             time.sleep(60)  # preventing too many requests error
 
         if failed_jobs:
-            failed_names = ", ".join(
-                f"'{name}' (finish_code={job.finish_code})" for name, job in failed_jobs.items()
-            )
+            failed_names = ", ".join(f"'{name}' (finish_code={job.finish_code})" for name, job in failed_jobs.items())
             raise UserException(f"Some extract refresh jobs did not finish successfully: {failed_names}")
 
     def _get_all_ds_by_filter(self, kind, data_sources):
