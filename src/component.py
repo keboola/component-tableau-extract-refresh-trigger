@@ -151,6 +151,9 @@ class Component(ComponentBase):
                         if continue_on_error:
                             logging.warning(f"Failed to trigger extract for dataset: {ds[KEY_DS_NAME]}. {ex}")
                         else:
+                            user_error = self._as_refresh_refused_user_exception(ex, "datasource", ds[KEY_DS_NAME])
+                            if user_error:
+                                raise user_error from ex
                             raise ex
 
             workbooks = params.get(KEY_WORKBOOKS, False)
@@ -165,6 +168,9 @@ class Component(ComponentBase):
                         if continue_on_error:
                             logging.warning(f"Failed to trigger extract for workbook: {wb.name}. {ex}")
                         else:
+                            user_error = self._as_refresh_refused_user_exception(ex, "workbook", wb.name)
+                            if user_error:
+                                raise user_error from ex
                             raise ex
 
             # poll job statuses
@@ -177,6 +183,28 @@ class Component(ComponentBase):
     def _validate_required(self, value: str, field_name: str) -> None:
         if not value or value == "":
             raise UserException(f"{field_name} is required.")
+
+    @staticmethod
+    def _as_refresh_refused_user_exception(ex: Exception, kind_singular: str, name: str):
+        """Return a ``UserException`` if ``ex`` is Tableau refusing the refresh, else ``None``.
+
+        Tableau answers a refresh trigger with a 403 ``ServerResponseError`` when the target
+        itself does not permit the operation (e.g. "Full extract refresh operation for the
+        workbook is not allowed.") or when the configured account lacks the permission to
+        refresh it. Both are fixed by the user, but they previously propagated uncaught to
+        the entrypoint as an opaque internal error (exit 2). Converting only this family
+        mirrors the 404 conversion in ``_get_all_ds_by_filter``; the caller re-raises
+        everything else untouched.
+        """
+        if isinstance(ex, tsc.ServerResponseError) and str(ex.code).startswith("403"):
+            # str(ServerResponseError) is a multi-line dump; detail is the actionable sentence.
+            reason = ex.detail or ex.summary
+            return UserException(
+                f'Tableau refused the extract refresh for {kind_singular} "{name}": {reason} '
+                f"Check that the {kind_singular} allows this refresh type and that the configured "
+                f"Tableau account has permission to refresh it."
+            )
+        return None
 
     def _run_task(self, task):
         response = self.server.tasks.run(task)
