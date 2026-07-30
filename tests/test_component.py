@@ -148,6 +148,93 @@ class TestGetAllDsByFilterLuidNotFound(unittest.TestCase):
         self.assertEqual(validation_errors, [])
 
 
+class TestRefreshRefusedConversion(unittest.TestCase):
+    """A Tableau 403 on the refresh trigger becomes a ``UserException`` instead of an internal error.
+
+    Tableau answers ``workbooks.refresh`` / ``tasks.run`` with a 403 ``ServerResponseError``
+    when the target does not permit the operation ("Full extract refresh operation for the
+    workbook is not allowed.") or the account lacks permission to refresh it. Both are
+    user-fixable, but the error previously propagated uncaught to the entrypoint and exited 2
+    (opaque internal error, pages the team) instead of 1 (clear user error).
+
+    The conversion happens only in the branch that was already about to fail — the
+    ``continue_on_error`` path and every non-403 error are re-raised exactly as before.
+    """
+
+    @staticmethod
+    def _refresh_refused(kind="workbook"):
+        return tsc.ServerResponseError(
+            "403069", "Forbidden", f"Full extract refresh operation for the {kind} is not allowed."
+        )
+
+    def _component(self, **cfg):
+        comp = Component.__new__(Component)  # bypass __init__ (needs a live server + datadir)
+        comp.cfg_params = {"datasources": [], "workbooks": [], **cfg}
+        comp.auth = mock.Mock()
+        comp.server = mock.MagicMock()  # MagicMock: sign_in() is used as a context manager
+        return comp
+
+    def _with_one_workbook(self, comp):
+        workbook = mock.Mock()
+        workbook.name = "wb1"  # must be set post-construction: Mock(name=...) sets the repr
+        comp._get_all_ds_by_filter = mock.Mock(return_value=([workbook], []))
+        return workbook
+
+    def test_workbook_refresh_refused_raises_user_exception(self):
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_one_workbook(comp)
+        comp.server.workbooks.refresh.side_effect = self._refresh_refused("workbook")
+
+        with self.assertRaises(UserException) as ctx:
+            comp.run()
+        message = str(ctx.exception)
+        self.assertIn('workbook "wb1"', message)
+        self.assertIn("Full extract refresh operation for the workbook is not allowed.", message)
+
+    def test_datasource_refresh_refused_raises_user_exception(self):
+        comp = self._component(datasources=[{"name": "ds1", "type": "FullRefresh"}])
+        task = mock.Mock()
+        comp._get_all_ds_by_filter = mock.Mock(return_value=([mock.Mock()], []))
+        comp.validate_dataset_names = mock.Mock(return_value={"ds1": "FullRefresh"})
+        comp.get_all_datasource_refresh_tasks = mock.Mock(return_value=[task])
+        comp.get_all_ds_for_tasks = mock.Mock(return_value={"ds1": {"fullrefresh": task}})
+        comp.validate_dataset_types = mock.Mock()
+        comp._run_task = mock.Mock(side_effect=self._refresh_refused("datasource"))
+
+        with self.assertRaises(UserException) as ctx:
+            comp.run()
+        self.assertIn('datasource "ds1"', str(ctx.exception))
+
+    def test_non_403_error_still_propagates_unchanged(self):
+        # Guards the classification: only the 403 family is converted. Anything else must
+        # still surface as its original exception (exit 2), exactly as before the fix.
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_one_workbook(comp)
+        comp.server.workbooks.refresh.side_effect = tsc.ServerResponseError("500000", "Internal Server Error", "boom")
+
+        with self.assertRaises(tsc.ServerResponseError):
+            comp.run()
+
+    def test_continue_on_error_still_swallows_the_403(self):
+        # The continue_on_error branch is untouched: a 403 is still logged and skipped,
+        # never converted, so configurations relying on it behave identically.
+        comp = self._component(workbooks=[{"name": "wb1"}], continue_on_error=True)
+        self._with_one_workbook(comp)
+        comp.server.workbooks.refresh.side_effect = self._refresh_refused("workbook")
+
+        comp.run()  # must not raise
+
+    def test_successful_refresh_is_unaffected(self):
+        # Happy path: a workbook that refreshes fine is still recorded and polled as before.
+        comp = self._component(workbooks=[{"name": "wb1"}], poll_mode=True)
+        self._with_one_workbook(comp)
+        comp.server.workbooks.refresh.return_value = mock.Mock(id="job-1")
+        comp._wait_for_finish = mock.Mock()
+
+        comp.run()
+        comp._wait_for_finish.assert_called_once_with({"wb1": "job-1"})
+
+
 if __name__ == "__main__":
     # import sys;sys.argv = ['', 'Test.testName']
     unittest.main()
