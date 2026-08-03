@@ -50,6 +50,7 @@ name = "component-tableau-extract-refresh-trigger"
 source = { virtual = "." }
 dependencies = [
     { name = "keboola-component" },
+    { name = "requests" },
     { name = "tableauserverclient" },
     { name = "xmltodict" },
 ]
@@ -65,6 +66,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "keboola-component", specifier = ">=1.9.4" },
+    { name = "requests", specifier = ">=2.31" },
     { name = "tableauserverclient", specifier = ">=0.32" },
     { name = "xmltodict", specifier = ">=0.13" },
 ]

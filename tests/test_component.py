@@ -3,6 +3,7 @@ import runpy
 import unittest
 from unittest import mock
 
+import requests
 import tableauserverclient as tsc
 from freezegun import freeze_time
 from keboola.component import ComponentBase, UserException
@@ -233,6 +234,94 @@ class TestRefreshRefusedConversion(unittest.TestCase):
 
         comp.run()
         comp._wait_for_finish.assert_called_once_with({"wb1": "job-1"})
+
+
+class TestConnectToServer(unittest.TestCase):
+    """``_connect_to_server`` retries a refused connection and then raises a ``UserException``.
+
+    The first thing the component does is call the Tableau Server's ``/serverInfo`` endpoint
+    (from ``tsc.Server(..., use_server_version=True)`` and from ``server_info.get()``). When the
+    server refused the connection, the ``requests.exceptions.ConnectionError`` propagated
+    uncaught to the entrypoint and exited 2 (opaque internal error). It is now retried a few
+    times and then surfaced as a ``UserException`` (exit 1), which is what an unreachable
+    endpoint actually is: user-fixable.
+
+    Only the failing path changed — the first-attempt-succeeds case must behave exactly as the
+    previous inline code did.
+    """
+
+    def setUp(self):
+        self.comp = Component.__new__(Component)  # bypass __init__ (needs a live server + datadir)
+        # Keep the suite fast: the retry backoff is real time we do not need to spend.
+        patcher = mock.patch.object(component.time, "sleep")
+        self.sleep = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    @staticmethod
+    def _server_mock():
+        server = mock.Mock()
+        server.server_info.get.return_value = mock.Mock()
+        return server
+
+    def test_first_attempt_success_is_unchanged(self):
+        # Happy path: one construction, one server_info.get(), no sleeping, values returned as before.
+        server = self._server_mock()
+        with mock.patch.object(component.tsc, "Server", return_value=server) as server_cls:
+            returned_server, returned_info = self.comp._connect_to_server("https://tableau.example", True, "3.20")
+
+        self.assertIs(returned_server, server)
+        self.assertIs(returned_info, server.server_info.get.return_value)
+        server_cls.assert_called_once_with("https://tableau.example", use_server_version=True)
+        self.sleep.assert_not_called()
+
+    def test_explicit_api_version_is_still_applied(self):
+        # Guards the behaviour moved out of __init__: an explicit api_version is set on the server.
+        server = self._server_mock()
+        with mock.patch.object(component.tsc, "Server", return_value=server):
+            self.comp._connect_to_server("https://tableau.example", False, "3.20")
+
+        self.assertEqual(server.version, "3.20")
+
+    def test_connection_error_is_retried_then_succeeds(self):
+        # A server that is briefly unreachable no longer fails the job.
+        server = self._server_mock()
+        side_effects = [requests.exceptions.ConnectionError("Connection refused"), server]
+        with mock.patch.object(component.tsc, "Server", side_effect=side_effects) as server_cls:
+            returned_server, _ = self.comp._connect_to_server("https://tableau.example", True, "3.20")
+
+        self.assertIs(returned_server, server)
+        self.assertEqual(server_cls.call_count, 2)
+        self.sleep.assert_called_once()
+
+    def test_persistent_connection_error_raises_user_exception(self):
+        # The fix under test: a genuinely unreachable server is a user error (exit 1), not exit 2.
+        refused = requests.exceptions.ConnectionError("[Errno 111] Connection refused")
+        with mock.patch.object(component.tsc, "Server", side_effect=refused) as server_cls:
+            with self.assertRaises(UserException) as ctx:
+                self.comp._connect_to_server("https://tableau.example", True, "3.20")
+
+        self.assertEqual(server_cls.call_count, component.CONNECT_MAX_ATTEMPTS)
+        message = str(ctx.exception)
+        self.assertIn("Could not connect to the Tableau Server", message)
+        self.assertIn("https://tableau.example", message)
+
+    def test_connection_error_from_server_info_is_also_handled(self):
+        # The /serverInfo call is reached from two places; both must be covered.
+        server = self._server_mock()
+        server.server_info.get.side_effect = requests.exceptions.ConnectionError("Connection refused")
+        with mock.patch.object(component.tsc, "Server", return_value=server):
+            with self.assertRaises(UserException):
+                self.comp._connect_to_server("https://tableau.example", True, "3.20")
+
+    def test_non_connection_error_still_propagates_unchanged(self):
+        # Guards the classification: only connection failures are converted. Anything else
+        # (e.g. an auth or protocol error) must surface as before and still exit 2.
+        with mock.patch.object(component.tsc, "Server", side_effect=ValueError("bad endpoint")) as server_cls:
+            with self.assertRaises(ValueError):
+                self.comp._connect_to_server("https://tableau.example", True, "3.20")
+
+        server_cls.assert_called_once()  # not retried
+        self.sleep.assert_not_called()
 
 
 if __name__ == "__main__":

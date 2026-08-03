@@ -7,6 +7,7 @@ import logging
 import os
 import time
 
+import requests
 import tableauserverclient as tsc
 import xmltodict
 from keboola.component import ComponentBase, UserException
@@ -41,6 +42,10 @@ KEY_LUID_REQUIRED = "luid_required"
 KEY_POLL_MODE_DISABLED = "poll_mode_disabled"
 
 APP_VERSION = "0.0.1"
+
+# Bounded retry for the very first network call to the Tableau Server (see _connect_to_server).
+CONNECT_MAX_ATTEMPTS = 3
+CONNECT_RETRY_BACKOFF_SECONDS = 2
 
 logger = logging.getLogger("tableau.endpoint.tasks")
 
@@ -99,12 +104,51 @@ class Component(ComponentBase):
         else:
             user_server_version = False
         logging.debug(f"use server:{user_server_version}, api: {api_version}")
-        self.server = tsc.Server(self.cfg_params[KEY_ENDPOINT], use_server_version=user_server_version)
-
-        if not user_server_version:
-            self.server.version = api_version
-        self.server_info = self.server.server_info.get()
+        self.server, self.server_info = self._connect_to_server(
+            self.cfg_params[KEY_ENDPOINT], user_server_version, api_version
+        )
         logging.info(f"Using API version: {self.server.version}")
+
+    @staticmethod
+    def _connect_to_server(
+        endpoint: str, use_server_version: bool, api_version: str
+    ) -> tuple[tsc.Server, tsc.ServerInfoItem]:
+        """Open the first connection to the Tableau Server, retrying a refused/dropped one.
+
+        This is the component's first network call: both ``tsc.Server(..., use_server_version=True)``
+        and ``server_info.get()`` hit the server's ``/serverInfo`` endpoint. When the server was
+        unreachable, the resulting ``requests.exceptions.ConnectionError`` propagated uncaught to
+        the entrypoint and exited 2 (opaque internal error, pages the team) with nothing the user
+        could act on.
+
+        It is now retried a few times so a server that is briefly restarting no longer fails the
+        job, and a genuinely unreachable one is surfaced as a ``UserException`` (exit 1) — an
+        endpoint that refuses connections is user-fixable (server down, wrong endpoint in the
+        configuration, or Keboola not permitted through the firewall), not a component bug.
+
+        The successful path is unchanged: the first attempt returns exactly what the previous
+        inline code produced.
+        """
+        for attempt in range(1, CONNECT_MAX_ATTEMPTS + 1):
+            try:
+                server = tsc.Server(endpoint, use_server_version=use_server_version)
+                if not use_server_version:
+                    server.version = api_version
+                return server, server.server_info.get()
+            except requests.exceptions.ConnectionError as ex:
+                if attempt == CONNECT_MAX_ATTEMPTS:
+                    raise UserException(
+                        f"Could not connect to the Tableau Server at '{endpoint}' after "
+                        f"{CONNECT_MAX_ATTEMPTS} attempts: {ex}. Check that the server is running, "
+                        f"that the endpoint in the configuration is correct, and that the server is "
+                        f"reachable from Keboola (firewall / IP allowlist)."
+                    ) from ex
+                delay = CONNECT_RETRY_BACKOFF_SECONDS * 2 ** (attempt - 1)
+                logging.warning(
+                    f"Could not connect to the Tableau Server "
+                    f"(attempt {attempt}/{CONNECT_MAX_ATTEMPTS}), retrying in {delay}s: {ex}"
+                )
+                time.sleep(delay)
 
     def run(self):
         """
