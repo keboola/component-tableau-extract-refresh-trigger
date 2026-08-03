@@ -109,7 +109,10 @@ class Component(ComponentBase):
         )
         logging.info(f"Using API version: {self.server.version}")
 
-    def _connect_to_server(self, endpoint, use_server_version, api_version):
+    @staticmethod
+    def _connect_to_server(
+        endpoint: str, use_server_version: bool, api_version: str
+    ) -> tuple[tsc.Server, tsc.ServerInfoItem]:
         """Open the first connection to the Tableau Server, retrying a refused/dropped one.
 
         This is the component's first network call: both ``tsc.Server(..., use_server_version=True)``
