@@ -4,6 +4,7 @@ dynamic = ["version"]
 requires-python = "~=3.13.0"
 dependencies = [
     "keboola-component>=1.9.4",
+    "requests>=2.31",
     "tableauserverclient>=0.32",
     "xmltodict>=0.13",
 ]
