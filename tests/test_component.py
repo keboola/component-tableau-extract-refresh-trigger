@@ -236,6 +236,102 @@ class TestRefreshRefusedConversion(unittest.TestCase):
         comp._wait_for_finish.assert_called_once_with({"wb1": "job-1"})
 
 
+class TestRefreshAlreadyQueuedConversion(unittest.TestCase):
+    """A Tableau 409 "already queued" conflict becomes a ``UserException`` instead of an internal error.
+
+    Tableau answers ``tasks.run`` / ``workbooks.refresh`` with a 409 ``ServerResponseError``
+    ("Resource Conflict" / "Job for '...' is already queued. Not queuing a duplicate.") when a
+    refresh for the same target is still queued or running — the trigger fired again before the
+    previous refresh finished. That is a scheduling problem the user can fix, but the error
+    previously propagated uncaught to the entrypoint and exited 2 (opaque internal error, pages
+    the team) instead of 1 (clear user error).
+
+    The conversion happens in the same helper and the same already-failing branch as the 403
+    case, so the ``continue_on_error`` path, every other error, and the success path are all
+    untouched. Crucially the job still *fails*: an already-queued refresh is never reported as
+    a success.
+    """
+
+    @staticmethod
+    def _already_queued(name="<name>"):
+        # 409093 is the code the observed failure carried, with this exact summary/detail.
+        return tsc.ServerResponseError(
+            "409093", "Resource Conflict", f"Job for '{name}' is already queued. Not queuing a duplicate."
+        )
+
+    def _component(self, **cfg):
+        comp = Component.__new__(Component)  # bypass __init__ (needs a live server + datadir)
+        comp.cfg_params = {"datasources": [], "workbooks": [], **cfg}
+        comp.auth = mock.Mock()
+        comp.server = mock.MagicMock()  # MagicMock: sign_in() is used as a context manager
+        return comp
+
+    def _with_one_workbook(self, comp):
+        workbook = mock.Mock()
+        workbook.name = "wb1"  # must be set post-construction: Mock(name=...) sets the repr
+        comp._get_all_ds_by_filter = mock.Mock(return_value=([workbook], []))
+        return workbook
+
+    def test_datasource_already_queued_raises_user_exception(self):
+        # The fix under test, on the path the alert came from: tasks.run() rejected as a duplicate.
+        comp = self._component(datasources=[{"name": "ds1", "type": "FullRefresh"}])
+        task = mock.Mock()
+        comp._get_all_ds_by_filter = mock.Mock(return_value=([mock.Mock()], []))
+        comp.validate_dataset_names = mock.Mock(return_value={"ds1": "FullRefresh"})
+        comp.get_all_datasource_refresh_tasks = mock.Mock(return_value=[task])
+        comp.get_all_ds_for_tasks = mock.Mock(return_value={"ds1": {"fullrefresh": task}})
+        comp.validate_dataset_types = mock.Mock()
+        comp._run_task = mock.Mock(side_effect=self._already_queued("ds1"))
+
+        with self.assertRaises(UserException) as ctx:
+            comp.run()
+        message = str(ctx.exception)
+        self.assertIn('datasource "ds1"', message)
+        self.assertIn("already has a refresh queued", message)
+        self.assertIn("is already queued. Not queuing a duplicate.", message)
+
+    def test_workbook_already_queued_raises_user_exception(self):
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_one_workbook(comp)
+        comp.server.workbooks.refresh.side_effect = self._already_queued("wb1")
+
+        with self.assertRaises(UserException) as ctx:
+            comp.run()
+        self.assertIn('workbook "wb1"', str(ctx.exception))
+
+    def test_already_queued_still_fails_the_job(self):
+        # The invariant that keeps this defensive: a 409 is reclassified, never turned into a
+        # success. run() must raise, and no job must be recorded for polling.
+        comp = self._component(workbooks=[{"name": "wb1"}], poll_mode=True)
+        self._with_one_workbook(comp)
+        comp.server.workbooks.refresh.side_effect = self._already_queued("wb1")
+        comp._wait_for_finish = mock.Mock()
+
+        with self.assertRaises(UserException):
+            comp.run()
+        comp._wait_for_finish.assert_not_called()
+
+    def test_continue_on_error_still_skips_the_409(self):
+        # The continue_on_error branch is untouched: a 409 is still logged and skipped,
+        # never converted, so configurations relying on it behave identically.
+        comp = self._component(workbooks=[{"name": "wb1"}], continue_on_error=True)
+        self._with_one_workbook(comp)
+        comp.server.workbooks.refresh.side_effect = self._already_queued("wb1")
+
+        comp.run()  # must not raise
+
+    def test_other_4xx_conflict_family_is_not_converted(self):
+        # Guards the classification boundary: only 403 and 409 are converted. A 4xx from
+        # another family (e.g. 400 bad request) must still surface as its original
+        # exception and exit 2, exactly as before.
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_one_workbook(comp)
+        comp.server.workbooks.refresh.side_effect = tsc.ServerResponseError("400006", "Bad Request", "nope")
+
+        with self.assertRaises(tsc.ServerResponseError):
+            comp.run()
+
+
 class TestConnectToServer(unittest.TestCase):
     """``_connect_to_server`` retries a refused connection and then raises a ``UserException``.
 

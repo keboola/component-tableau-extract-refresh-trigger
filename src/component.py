@@ -232,21 +232,43 @@ class Component(ComponentBase):
     def _as_refresh_refused_user_exception(ex: Exception, kind_singular: str, name: str):
         """Return a ``UserException`` if ``ex`` is Tableau refusing the refresh, else ``None``.
 
-        Tableau answers a refresh trigger with a 403 ``ServerResponseError`` when the target
-        itself does not permit the operation (e.g. "Full extract refresh operation for the
-        workbook is not allowed.") or when the configured account lacks the permission to
-        refresh it. Both are fixed by the user, but they previously propagated uncaught to
-        the entrypoint as an opaque internal error (exit 2). Converting only this family
+        Tableau answers a refresh trigger with a ``ServerResponseError`` in two user-fixable
+        situations:
+
+        * **403** — the target itself does not permit the operation (e.g. "Full extract
+          refresh operation for the workbook is not allowed.") or the configured account
+          lacks the permission to refresh it.
+        * **409** (observed as ``409093`` "Resource Conflict" / "Job for '...' is already
+          queued. Not queuing a duplicate.") — a refresh for the same target is still queued
+          or running, so the trigger fired again before the previous refresh finished.
+
+        Both are fixed by the user, but they previously propagated uncaught to the
+        entrypoint as an opaque internal error (exit 2). Converting only these families
         mirrors the 404 conversion in ``_get_all_ds_by_filter``; the caller re-raises
         everything else untouched.
+
+        Note the 409 is *converted, not swallowed*: the job still fails, only now as a
+        clear exit-1 user error instead of an exit-2 internal one. Treating an already
+        queued refresh as a success would change what the component reports, which is
+        explicitly not what this does.
         """
-        if isinstance(ex, tsc.ServerResponseError) and str(ex.code).startswith("403"):
-            # str(ServerResponseError) is a multi-line dump; detail is the actionable sentence.
-            reason = ex.detail or ex.summary
+        if not isinstance(ex, tsc.ServerResponseError):
+            return None
+        # str(ServerResponseError) is a multi-line dump; detail is the actionable sentence.
+        reason = ex.detail or ex.summary
+        code = str(ex.code)
+        if code.startswith("403"):
             return UserException(
                 f'Tableau refused the extract refresh for {kind_singular} "{name}": {reason} '
                 f"Check that the {kind_singular} allows this refresh type and that the configured "
                 f"Tableau account has permission to refresh it."
+            )
+        if code.startswith("409"):
+            return UserException(
+                f'Tableau already has a refresh queued for {kind_singular} "{name}" and refused to '
+                f"queue a duplicate: {reason} The previous refresh has not finished yet — wait for it "
+                f"to complete, trigger this component less often, or enable 'Continue on error' to "
+                f"skip targets that are already queued."
             )
         return None
 
