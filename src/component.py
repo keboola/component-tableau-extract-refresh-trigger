@@ -264,11 +264,14 @@ class Component(ComponentBase):
                 f"Tableau account has permission to refresh it."
             )
         if code.startswith("409"):
+            # The lead sentence stays generic ("a conflict") because this matches the whole 409
+            # family, not just the observed "already queued" code; Tableau's own detail, appended
+            # last so it cannot run into a following sentence, carries the specific cause.
             return UserException(
-                f'Tableau already has a refresh queued for {kind_singular} "{name}" and refused to '
-                f"queue a duplicate: {reason} The previous refresh has not finished yet — wait for it "
-                f"to complete, trigger this component less often, or enable 'Continue on error' to "
-                f"skip targets that are already queued."
+                f'Tableau refused to queue the extract refresh for {kind_singular} "{name}" because '
+                f"of a conflict — usually the previous refresh has not finished yet. Wait for the "
+                f"running refresh to complete, or trigger this component less often. "
+                f"Tableau reported: {reason}"
             )
         return None
 

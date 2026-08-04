@@ -287,8 +287,10 @@ class TestRefreshAlreadyQueuedConversion(unittest.TestCase):
             comp.run()
         message = str(ctx.exception)
         self.assertIn('datasource "ds1"', message)
-        self.assertIn("already has a refresh queued", message)
-        self.assertIn("is already queued. Not queuing a duplicate.", message)
+        self.assertIn("refused to queue the extract refresh", message)
+        # Tableau's own detail is appended verbatim, and last, so it carries the specific cause
+        # and cannot run into a following sentence.
+        self.assertTrue(message.endswith("is already queued. Not queuing a duplicate."), message)
 
     def test_workbook_already_queued_raises_user_exception(self):
         comp = self._component(workbooks=[{"name": "wb1"}])
