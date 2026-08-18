@@ -169,6 +169,12 @@ class TestGetAllDsByFilterMalformedEntry(unittest.TestCase):
         comp.server = mock.Mock()
         return comp
 
+    @staticmethod
+    def _found(name):
+        found = mock.Mock()
+        found.name = name  # must be set post-construction: Mock(name=...) sets the repr, not the attribute
+        return found
+
     def test_list_entry_raises_user_exception(self):
         # The fix under test, reproducing the observed configuration shape.
         comp = self._component()
@@ -185,7 +191,9 @@ class TestGetAllDsByFilterMalformedEntry(unittest.TestCase):
     def test_offending_entry_position_is_reported(self):
         # The point of the message: a long array must tell the user *which* entry is wrong.
         comp = self._component()
-        comp.server.workbooks.get_by_id.side_effect = [mock.Mock(name_=n) for n in ("a", "b")]
+        # The two preceding entries must resolve cleanly, so the only thing the assertion can
+        # be reacting to is the malformed third entry.
+        comp.server.workbooks.get_by_id.side_effect = [self._found("wb1"), self._found("wb2")]
         entries = [{"name": "wb1", "luid": "luid-1"}, {"name": "wb2", "luid": "luid-2"}, ["wb3"]]
 
         with self.assertRaises(UserException) as ctx:
@@ -214,8 +222,7 @@ class TestGetAllDsByFilterMalformedEntry(unittest.TestCase):
     def test_well_formed_entries_are_unaffected(self):
         # Happy path: dict entries resolve exactly as before, guard or no guard.
         comp = self._component()
-        found = mock.Mock()
-        found.name = "wb1"  # must be set post-construction: Mock(name=...) sets the repr
+        found = self._found("wb1")
         comp.server.workbooks.get_by_id.return_value = found
 
         all_ds, validation_errors = comp._get_all_ds_by_filter("workbooks", [{"name": "wb1", "luid": "some-luid"}])
