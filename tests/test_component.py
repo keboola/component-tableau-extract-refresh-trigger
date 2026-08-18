@@ -149,6 +149,85 @@ class TestGetAllDsByFilterLuidNotFound(unittest.TestCase):
         self.assertEqual(validation_errors, [])
 
 
+class TestGetAllDsByFilterMalformedEntry(unittest.TestCase):
+    """A non-object entry in ``datasources``/``workbooks`` becomes a ``UserException``.
+
+    The configuration schema declares every entry of these arrays as an object
+    (``{"name": ..., "tag": ..., "luid": ...}``). A configuration that was not produced by
+    the UI can carry something else there — the observed failure had a nested array — and
+    that value reached ``ds_filter.get(KEY_LUID)``, raising
+    ``AttributeError: 'list' object has no attribute 'get'``. It propagated uncaught to the
+    entrypoint and exited 2 (opaque internal error, pages the team) without naming the entry
+    at fault, even though the fix is entirely in the user's hands.
+
+    The guard only rejects values that were already guaranteed to crash one line later, so
+    every well-formed entry takes exactly the path it took before.
+    """
+
+    def _component(self):
+        comp = Component.__new__(Component)  # bypass __init__ (needs a live server + datadir)
+        comp.server = mock.Mock()
+        return comp
+
+    def test_list_entry_raises_user_exception(self):
+        # The fix under test, reproducing the observed configuration shape.
+        comp = self._component()
+
+        with self.assertRaises(UserException) as ctx:
+            comp._get_all_ds_by_filter("workbooks", [["wb1"]])
+        message = str(ctx.exception)
+        self.assertIn('Invalid "workbooks" configuration', message)
+        self.assertIn("entry #1", message)
+        self.assertIn("list", message)
+        # kind is singularized when naming the entry, as in the LUID-not-found message.
+        self.assertIn("each workbook entry", message)
+
+    def test_offending_entry_position_is_reported(self):
+        # The point of the message: a long array must tell the user *which* entry is wrong.
+        comp = self._component()
+        comp.server.workbooks.get_by_id.side_effect = [mock.Mock(name_=n) for n in ("a", "b")]
+        entries = [{"name": "wb1", "luid": "luid-1"}, {"name": "wb2", "luid": "luid-2"}, ["wb3"]]
+
+        with self.assertRaises(UserException) as ctx:
+            comp._get_all_ds_by_filter("workbooks", entries)
+        self.assertIn("entry #3", str(ctx.exception))
+
+    def test_string_entry_is_also_rejected(self):
+        # Any non-object hits the same guard; the type is named so the user can spot it.
+        comp = self._component()
+
+        with self.assertRaises(UserException) as ctx:
+            comp._get_all_ds_by_filter("datasources", ["ds1"])
+        message = str(ctx.exception)
+        self.assertIn('Invalid "datasources" configuration', message)
+        self.assertIn("each datasource entry", message)
+        self.assertIn("str", message)
+
+    def test_it_is_not_an_internal_error(self):
+        # The invariant that makes this a fix rather than a rename: the failure is no longer an
+        # AttributeError, so the entrypoint maps it to exit 1 instead of exit 2.
+        comp = self._component()
+
+        with self.assertRaises(UserException):
+            comp._get_all_ds_by_filter("workbooks", [None])
+
+    def test_well_formed_entries_are_unaffected(self):
+        # Happy path: dict entries resolve exactly as before, guard or no guard.
+        comp = self._component()
+        found = mock.Mock()
+        found.name = "wb1"  # must be set post-construction: Mock(name=...) sets the repr
+        comp.server.workbooks.get_by_id.return_value = found
+
+        all_ds, validation_errors = comp._get_all_ds_by_filter("workbooks", [{"name": "wb1", "luid": "some-luid"}])
+        self.assertEqual(all_ds, [found])
+        self.assertEqual(validation_errors, [])
+
+    def test_empty_list_is_unaffected(self):
+        comp = self._component()
+
+        self.assertEqual(comp._get_all_ds_by_filter("workbooks", []), ([], []))
+
+
 class TestRefreshRefusedConversion(unittest.TestCase):
     """A Tableau 403 on the refresh trigger becomes a ``UserException`` instead of an internal error.
 
