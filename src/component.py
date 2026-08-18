@@ -156,6 +156,7 @@ class Component(ComponentBase):
         """
         params = self.cfg_params  # noqa
         continue_on_error = params.get(KEY_CONTINUE_ON_ERROR, False)
+        poll_mode = bool(params.get(KEY_POLL_MODE))
 
         try:
             sign_in_ctx = self.server.auth.sign_in(self.auth)
@@ -192,7 +193,9 @@ class Component(ComponentBase):
                         job_id = self._run_task(task)
                         executed_jobs[ds[KEY_DS_NAME]] = job_id
                     except Exception as ex:
-                        if continue_on_error:
+                        if self._is_refresh_already_queued(ex):
+                            logging.warning(self._already_queued_message(ex, "datasource", ds[KEY_DS_NAME], poll_mode))
+                        elif continue_on_error:
                             logging.warning(f"Failed to trigger extract for dataset: {ds[KEY_DS_NAME]}. {ex}")
                         else:
                             user_error = self._as_refresh_refused_user_exception(ex, "datasource", ds[KEY_DS_NAME])
@@ -209,7 +212,9 @@ class Component(ComponentBase):
                         job = self.server.workbooks.refresh(wb)
                         executed_jobs[wb.name] = job.id
                     except Exception as ex:
-                        if continue_on_error:
+                        if self._is_refresh_already_queued(ex):
+                            logging.warning(self._already_queued_message(ex, "workbook", wb.name, poll_mode))
+                        elif continue_on_error:
                             logging.warning(f"Failed to trigger extract for workbook: {wb.name}. {ex}")
                         else:
                             user_error = self._as_refresh_refused_user_exception(ex, "workbook", wb.name)
@@ -218,7 +223,7 @@ class Component(ComponentBase):
                             raise ex
 
             # poll job statuses
-            if params.get(KEY_POLL_MODE):
+            if poll_mode:
                 logging.info("Polling extract refresh statuses.")
                 self._wait_for_finish(executed_jobs)
 
@@ -229,49 +234,61 @@ class Component(ComponentBase):
             raise UserException(f"{field_name} is required.")
 
     @staticmethod
+    def _is_refresh_already_queued(ex: Exception) -> bool:
+        """Is ``ex`` Tableau declining a refresh trigger because one is already queued or running?
+
+        Both refresh-trigger endpoints — ``POST .../tasks/extractRefreshes/{id}/runNow`` for
+        datasources and ``POST .../workbooks/{id}/refresh`` for workbooks — answer with a 409
+        "Resource Conflict" when a refresh for the same target is still queued or in progress
+        (observed as ``409093``: "Job for '...' is already queued. Not queuing a duplicate.").
+        A conflict is the only documented 409 for these two endpoints, so the family is matched
+        by response code rather than by the wording of the message, which Tableau is free to
+        reword between versions.
+
+        This is not a failed trigger: the extract *is* being refreshed, just by the run already
+        in flight. The caller therefore logs a warning and carries on (CFTL-371 / SUPPORT-12519)
+        instead of failing the job — the previous behaviour, which forced users to switch on
+        ``continue_on_error`` and thereby suppress genuine errors too.
+        """
+        return isinstance(ex, tsc.ServerResponseError) and str(ex.code).startswith("409")
+
+    @staticmethod
+    def _already_queued_message(ex: tsc.ServerResponseError, kind_singular: str, name: str, poll_mode: bool) -> str:
+        """Build the warning logged for a refresh Tableau did not queue because one is already running."""
+        # str(ServerResponseError) is a multi-line dump; detail is the actionable sentence.
+        reason = ex.detail or ex.summary
+        # Only refreshes this run queued itself are polled, so in poll mode the run finishes
+        # without waiting for the one already in flight — say so rather than let the user assume.
+        polling_note = " This run does not wait for that refresh to finish." if poll_mode else ""
+        return (
+            f'A refresh for {kind_singular} "{name}" is already queued or running in Tableau, so a '
+            f"duplicate was not queued — the refresh already in flight will complete on its own."
+            f"{polling_note} Tableau reported: {reason}"
+        )
+
+    @staticmethod
     def _as_refresh_refused_user_exception(ex: Exception, kind_singular: str, name: str):
         """Return a ``UserException`` if ``ex`` is Tableau refusing the refresh, else ``None``.
 
-        Tableau answers a refresh trigger with a ``ServerResponseError`` in two user-fixable
-        situations:
+        Tableau answers a refresh trigger with a **403** ``ServerResponseError`` when the target
+        itself does not permit the operation (e.g. "Full extract refresh operation for the
+        workbook is not allowed.") or when the configured account lacks the permission to refresh
+        it. That is user-fixable, but it previously propagated uncaught to the entrypoint as an
+        opaque internal error (exit 2). Converting only this family mirrors the 404 conversion in
+        ``_get_all_ds_by_filter``; the caller re-raises everything else untouched.
 
-        * **403** — the target itself does not permit the operation (e.g. "Full extract
-          refresh operation for the workbook is not allowed.") or the configured account
-          lacks the permission to refresh it.
-        * **409** (observed as ``409093`` "Resource Conflict" / "Job for '...' is already
-          queued. Not queuing a duplicate.") — a refresh for the same target is still queued
-          or running, so the trigger fired again before the previous refresh finished.
-
-        Both are fixed by the user, but they previously propagated uncaught to the
-        entrypoint as an opaque internal error (exit 2). Converting only these families
-        mirrors the 404 conversion in ``_get_all_ds_by_filter``; the caller re-raises
-        everything else untouched.
-
-        Note the 409 is *converted, not swallowed*: the job still fails, only now as a
-        clear exit-1 user error instead of an exit-2 internal one. Treating an already
-        queued refresh as a success would change what the component reports, which is
-        explicitly not what this does.
+        The 409 "already queued" conflict is *not* handled here — it never reaches this point,
+        because ``_is_refresh_already_queued`` takes it first and the caller logs it as a warning.
         """
         if not isinstance(ex, tsc.ServerResponseError):
             return None
         # str(ServerResponseError) is a multi-line dump; detail is the actionable sentence.
         reason = ex.detail or ex.summary
-        code = str(ex.code)
-        if code.startswith("403"):
+        if str(ex.code).startswith("403"):
             return UserException(
                 f'Tableau refused the extract refresh for {kind_singular} "{name}": {reason} '
                 f"Check that the {kind_singular} allows this refresh type and that the configured "
                 f"Tableau account has permission to refresh it."
-            )
-        if code.startswith("409"):
-            # The lead sentence stays generic ("a conflict") because this matches the whole 409
-            # family, not just the observed "already queued" code; Tableau's own detail, appended
-            # last so it cannot run into a following sentence, carries the specific cause.
-            return UserException(
-                f'Tableau refused to queue the extract refresh for {kind_singular} "{name}" because '
-                f"of a conflict — usually the previous refresh has not finished yet. Wait for the "
-                f"running refresh to complete, or trigger this component less often. "
-                f"Tableau reported: {reason}"
             )
         return None
 

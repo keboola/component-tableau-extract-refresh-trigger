@@ -78,7 +78,7 @@
     "continue_on_error": {
       "type": "boolean",
       "title": "Continue on error",
-      "description": "If set to true, the component will continue with refresh of other data sources or workbooks even if the current one fails.",
+      "description": "If set to true, the component will continue with refresh of other data sources or workbooks even if the current one fails. Note that this suppresses all trigger errors, including genuine ones. You do not need this for refreshes that are already queued or running in Tableau - those are always reported as a warning and never fail the job.",
       "propertyOrder": 465,
       "enum": [
         false,

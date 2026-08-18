@@ -26,6 +26,23 @@ Since 02/2022 the PATs are required as a method of authentication. Follow [this 
 Specify whether the app should wait for all triggered tasks to finish. If set to `Yes` the trigger will wait for all triggered jobs to finish, 
 otherwise it will trigger all the jobs and finish successfully right after.
 
+## Continue on error
+
+If set to `true`, the component logs a warning and continues with the remaining data sources or workbooks when
+one of them fails to trigger, instead of failing the job. Note that this suppresses **all** trigger errors,
+including genuine ones such as missing permissions — so leave it off unless you specifically need it.
+
+## Refresh already queued or running
+
+When a refresh for a data source or workbook is still queued or in progress in Tableau, Tableau refuses to queue
+a duplicate one. The component does **not** treat this as an error: it logs a warning, continues with the
+remaining data sources and workbooks, and the job finishes successfully. The extract is refreshed by the run
+that is already in flight, so there is nothing to fix — you do not need to enable `Continue on error` for this
+case.
+
+In `poll mode` the component only waits for the refreshes it triggered itself, so it does not wait for the
+refresh that was already running. The warning in the job log says so explicitly.
+
 ## Tableau datasource specification
 
 The trigger application is executing tasks / schedules that are defined on data sources. Specify a list of data sources 
