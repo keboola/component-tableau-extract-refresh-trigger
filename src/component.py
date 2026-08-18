@@ -365,7 +365,7 @@ class Component(ComponentBase):
             if not isinstance(ds_filter, dict):
                 kind_singular = kind.rstrip("s")  # "datasources" -> "datasource", "workbooks" -> "workbook"
                 raise UserException(
-                    f'Invalid "{kind}" configuration: entry #{position} is a '
+                    f'Invalid "{kind}" configuration: entry #{position} is of type '
                     f"{type(ds_filter).__name__}, but each {kind_singular} entry must be an object with "
                     f'"name" (and optionally "tag" / "luid"). Fix that entry in the configuration.'
                 )
