@@ -237,14 +237,16 @@ class TestRefreshRefusedConversion(unittest.TestCase):
 
 
 class TestRefreshAlreadyQueuedWarning(unittest.TestCase):
-    """A Tableau 409 "already queued" conflict is a warning; the run continues and still succeeds.
+    """With ``already_in_queue_as_warning`` on, an already-queued refresh warns and the run succeeds.
 
     Tableau answers ``tasks.run`` / ``workbooks.refresh`` with a 409 ``ServerResponseError``
     ("Resource Conflict" / "Job for '...' is already queued. Not queuing a duplicate.") when a
     refresh for the same target is still queued or running. Nothing is broken in that case — the
-    extract is being refreshed by the run already in flight — so the component logs a warning and
-    carries on (CFTL-371 / SUPPORT-12519) instead of failing the job. Previously this failed the
-    job and the only workaround was ``continue_on_error``, which suppresses genuine errors too.
+    extract is being refreshed by the run already in flight — so a configuration can opt into
+    treating it as a warning (CFTL-371 / SUPPORT-12519) rather than reaching for
+    ``continue_on_error``, which suppresses genuine errors too.
+
+    Every case here enables the option; ``TestAlreadyQueuedWithoutOptIn`` covers the default.
 
     The classification stays narrow. Only *this* conflict is downgraded — recognised by error
     code, or by Tableau's own wording when a deployment reports it under a different code. Any
@@ -262,7 +264,8 @@ class TestRefreshAlreadyQueuedWarning(unittest.TestCase):
 
     def _component(self, **cfg):
         comp = Component.__new__(Component)  # bypass __init__ (needs a live server + datadir)
-        comp.cfg_params = {"datasources": [], "workbooks": [], **cfg}
+        # The behaviour under test is opt-in, so it is switched on for every case in this class.
+        comp.cfg_params = {"datasources": [], "workbooks": [], "already_in_queue_as_warning": True, **cfg}
         comp.auth = mock.Mock()
         comp.server = mock.MagicMock()  # MagicMock: sign_in() is used as a context manager
         comp._wait_for_finish = mock.Mock()
@@ -413,6 +416,82 @@ class TestRefreshAlreadyQueuedWarning(unittest.TestCase):
 
         with self.assertRaises(tsc.ServerResponseError):
             comp.run()
+
+
+class TestAlreadyQueuedWithoutOptIn(unittest.TestCase):
+    """Without ``already_in_queue_as_warning``, an already-queued refresh still fails the job.
+
+    The warning behaviour is opt-in and off by default, so a configuration that does not ask for it
+    behaves exactly as it did before the option existed: the 409 becomes the ``UserException``
+    merged in #21 — a clear exit 1, never an opaque exit 2 — no job is recorded for polling, and
+    the run stops. This is the backward-compatibility half of ``TestRefreshAlreadyQueuedWarning``.
+    """
+
+    @staticmethod
+    def _already_queued(name="<name>"):
+        return tsc.ServerResponseError(
+            "409093", "Resource Conflict", f"Job for '{name}' is already queued. Not queuing a duplicate."
+        )
+
+    def _component(self, **cfg):
+        comp = Component.__new__(Component)  # bypass __init__ (needs a live server + datadir)
+        comp.cfg_params = {"datasources": [], "workbooks": [], **cfg}  # option absent -> default off
+        comp.auth = mock.Mock()
+        comp.server = mock.MagicMock()  # MagicMock: sign_in() is used as a context manager
+        comp._wait_for_finish = mock.Mock()
+        return comp
+
+    def _with_one_workbook(self, comp):
+        workbook = mock.Mock()
+        workbook.name = "wb1"  # must be set post-construction: Mock(name=...) sets the repr
+        comp._get_all_ds_by_filter = mock.Mock(return_value=([workbook], []))
+        return workbook
+
+    def test_workbook_already_queued_fails_the_job_by_default(self):
+        comp = self._component(workbooks=[{"name": "wb1"}], poll_mode=1)
+        self._with_one_workbook(comp)
+        comp.server.workbooks.refresh.side_effect = self._already_queued("wb1")
+
+        with self.assertRaises(UserException) as ctx:
+            comp.run()
+        message = str(ctx.exception)
+        self.assertIn('workbook "wb1"', message)
+        self.assertIn("refused to queue the extract refresh", message)
+        comp._wait_for_finish.assert_not_called()  # nothing queued, so nothing to poll
+
+    def test_datasource_already_queued_fails_the_job_by_default(self):
+        comp = self._component(datasources=[{"name": "ds1", "type": "FullRefresh"}])
+        task = mock.Mock()
+        comp._get_all_ds_by_filter = mock.Mock(return_value=([mock.Mock()], []))
+        comp.validate_dataset_names = mock.Mock(return_value={"ds1": "FullRefresh"})
+        comp.get_all_datasource_refresh_tasks = mock.Mock(return_value=[task])
+        comp.get_all_ds_for_tasks = mock.Mock(return_value={"ds1": {"fullrefresh": task}})
+        comp.validate_dataset_types = mock.Mock()
+        comp._run_task = mock.Mock(side_effect=self._already_queued("ds1"))
+
+        with self.assertRaises(UserException) as ctx:
+            comp.run()
+        message = str(ctx.exception)
+        self.assertIn('datasource "ds1"', message)
+        # #21's message shape: Tableau's own detail is appended verbatim, and last.
+        self.assertTrue(message.endswith("is already queued. Not queuing a duplicate."), message)
+
+    def test_option_explicitly_false_behaves_the_same(self):
+        comp = self._component(workbooks=[{"name": "wb1"}], already_in_queue_as_warning=False)
+        self._with_one_workbook(comp)
+        comp.server.workbooks.refresh.side_effect = self._already_queued("wb1")
+
+        with self.assertRaises(UserException):
+            comp.run()
+
+    def test_continue_on_error_still_skips_it(self):
+        # continue_on_error is untouched by the new option: it swallows this like any other error.
+        comp = self._component(workbooks=[{"name": "wb1"}], continue_on_error=True)
+        self._with_one_workbook(comp)
+        comp.server.workbooks.refresh.side_effect = self._already_queued("wb1")
+
+        with self.assertLogs(level="WARNING"):
+            comp.run()  # must not raise
 
 
 class TestConnectToServer(unittest.TestCase):

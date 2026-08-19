@@ -32,6 +32,7 @@ KEY_DATASOURCES = "datasources"
 KEY_WORKBOOKS = "workbooks"
 KEY_SITE_ID = "site_id"
 KEY_CONTINUE_ON_ERROR = "continue_on_error"
+KEY_ALREADY_IN_QUEUE_AS_WARNING = "already_in_queue_as_warning"
 
 KEY_AUTH_TYPE = "authentication_type"
 AUTH_NAMES = [KEY_USER_NAME, KEY_TOKEN_NAME]
@@ -162,6 +163,10 @@ class Component(ComponentBase):
         """
         params = self.cfg_params  # noqa
         continue_on_error = params.get(KEY_CONTINUE_ON_ERROR, False)
+        # Opt-in, default off: an extract whose refresh Tableau says is already queued or running
+        # is logged as a warning and the job still finishes successfully. Off, it fails the job as
+        # it always has. See _is_refresh_already_queued.
+        already_in_queue_as_warning = params.get(KEY_ALREADY_IN_QUEUE_AS_WARNING, False)
         poll_mode = bool(params.get(KEY_POLL_MODE))
 
         try:
@@ -199,7 +204,7 @@ class Component(ComponentBase):
                         job_id = self._run_task(task)
                         executed_jobs[ds[KEY_DS_NAME]] = job_id
                     except Exception as ex:
-                        if self._is_refresh_already_queued(ex):
+                        if already_in_queue_as_warning and self._is_refresh_already_queued(ex):
                             logging.warning(self._already_queued_message(ex, "datasource", ds[KEY_DS_NAME], poll_mode))
                         elif continue_on_error:
                             logging.warning(f"Failed to trigger extract for dataset: {ds[KEY_DS_NAME]}. {ex}")
@@ -218,7 +223,7 @@ class Component(ComponentBase):
                         job = self.server.workbooks.refresh(wb)
                         executed_jobs[wb.name] = job.id
                     except Exception as ex:
-                        if self._is_refresh_already_queued(ex):
+                        if already_in_queue_as_warning and self._is_refresh_already_queued(ex):
                             logging.warning(self._already_queued_message(ex, "workbook", wb.name, poll_mode))
                         elif continue_on_error:
                             logging.warning(f"Failed to trigger extract for workbook: {wb.name}. {ex}")
@@ -249,17 +254,19 @@ class Component(ComponentBase):
         (observed as ``409093``: "Job for '...' is already queued. Not queuing a duplicate.").
 
         Only that one conflict is recognised, and deliberately not the whole 409 family: this is
-        the single error the component downgrades to a warning, so matching it too broadly would
-        report a job as successful when some other, unrelated conflict meant nothing was refreshed
-        at all. It is recognised by error code, falling back to Tableau's own wording because the
-        code for the same condition can differ between Tableau versions and deployments. Anything
-        else in the 409 family still fails the job (see ``_as_refresh_refused_user_exception``), so
-        an unrecognised conflict fails loudly rather than passing quietly.
+        the single error the ``already_in_queue_as_warning`` option downgrades to a warning, so
+        matching it too broadly would report a job as successful when some other, unrelated
+        conflict meant nothing was refreshed at all. It is recognised by error code, falling back
+        to Tableau's own wording because the code for the same condition can differ between
+        Tableau versions and deployments. Anything else in the 409 family fails the job whatever
+        the option is set to (see ``_as_refresh_refused_user_exception``), so an unrecognised
+        conflict fails loudly rather than passing quietly.
 
         The recognised case is not a failed trigger: the extract *is* being refreshed, just by the
-        run already in flight. The caller therefore logs a warning and carries on (CFTL-371 /
-        SUPPORT-12519) instead of failing the job — the previous behaviour, which forced users to
-        switch on ``continue_on_error`` and thereby suppress genuine errors too.
+        run already in flight. Users who would rather see that as a warning than a failed job can
+        switch ``already_in_queue_as_warning`` on (CFTL-371 / SUPPORT-12519) instead of reaching
+        for ``continue_on_error``, which suppresses genuine errors too. The option is off by
+        default, so the job keeps failing on an already-queued refresh unless it is enabled.
         """
         if not isinstance(ex, tsc.ServerResponseError):
             return False
@@ -273,7 +280,11 @@ class Component(ComponentBase):
 
     @staticmethod
     def _already_queued_message(ex: tsc.ServerResponseError, kind_singular: str, name: str, poll_mode: bool) -> str:
-        """Build the warning logged for a refresh Tableau did not queue because one is already running."""
+        """Build the warning logged for a refresh Tableau did not queue because one is already running.
+
+        Only reached with ``already_in_queue_as_warning`` enabled; without it this situation fails
+        the job instead (see ``_as_refresh_refused_user_exception``).
+        """
         # str(ServerResponseError) is a multi-line dump; detail is the actionable sentence.
         reason = ex.detail or ex.summary
         # Only refreshes this run queued itself are polled, so in poll mode the run finishes
@@ -296,10 +307,11 @@ class Component(ComponentBase):
         opaque internal error (exit 2). Converting only these families mirrors the 404 conversion
         in ``_get_all_ds_by_filter``; the caller re-raises everything else untouched.
 
-        A **409** "Resource Conflict" is also converted, for the same reason. Note this is only
-        reached by a conflict ``_is_refresh_already_queued`` did *not* recognise as "a refresh is
-        already queued or running" — that one is logged as a warning by the caller and never gets
-        here. An unrecognised conflict keeps failing the job, so nothing is silently downgraded.
+        A **409** "Resource Conflict" is also converted, for the same reason — this is what an
+        already-queued refresh reports by default. It is skipped only for the one conflict
+        ``_is_refresh_already_queued`` recognises *and* only when the configuration opted into
+        ``already_in_queue_as_warning``; the caller logs that case as a warning instead. Every
+        other conflict still fails the job, so nothing is silently downgraded.
         """
         if not isinstance(ex, tsc.ServerResponseError):
             return None

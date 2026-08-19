@@ -1,1 +1,1 @@
-Allows triggering Tableau extract refresh tasks based on type (`Incremental`, `Full`). Supports `poll mode` to control whether to wait on the result or just trigger and pass.
+Allows triggering Tableau extract refresh tasks based on type (`Incremental`, `Full`). Supports `poll mode` to control whether to wait on the result or just trigger and pass. A refresh that Tableau reports as already in the queue can optionally be handled as a warning, so the job finishes successfully instead of failing.

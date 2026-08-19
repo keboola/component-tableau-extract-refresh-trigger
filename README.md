@@ -30,15 +30,20 @@ otherwise it will trigger all the jobs and finish successfully right after.
 
 If set to `true`, the component logs a warning and continues with the remaining data sources or workbooks when
 one of them fails to trigger, instead of failing the job. Note that this suppresses **all** trigger errors,
-including genuine ones such as missing permissions — so leave it off unless you specifically need it.
+including genuine ones such as missing permissions — so leave it off unless you specifically need it. If the only
+case you want to tolerate is a refresh that is already in the queue, use the option below instead.
 
-## Refresh already queued or running
+## Handle 'already in queue' as warning
 
 When a refresh for a data source or workbook is still queued or in progress in Tableau, Tableau refuses to queue
-a duplicate one. The component does **not** treat this as an error: it logs a warning, continues with the
-remaining data sources and workbooks, and the job finishes successfully. The extract is refreshed by the run
-that is already in flight, so there is nothing to fix — you do not need to enable `Continue on error` for this
-case.
+a duplicate one and the job fails.
+
+Check this option (`already_in_queue_as_warning`, **off by default**) to have the component log a warning for that
+case instead, continue with the remaining data sources and workbooks, and finish successfully. The extract is
+refreshed by the run that is already in flight, so nothing is lost by skipping the duplicate.
+
+Unlike `Continue on error`, this applies to that **single** case only. Anything else — a missing permission, a
+refresh type the data source does not allow, an unknown Tableau conflict — still fails the job.
 
 In `poll mode` the component only waits for the refreshes it triggered itself, so it does not wait for the
 refresh that was already running. The warning in the job log says so explicitly.
@@ -151,6 +156,8 @@ If required, change local data folder (the `CUSTOM_FOLDER` placeholder) path to 
       {"name":"IncrementalTestExtract", "type": "IncrementExtractTask", "luid": "ecf7d5e0-a345-4e03-8d55-106f9f46af1g"}
     ],
     "poll_mode": 1,
+    "continue_on_error": false,
+    "already_in_queue_as_warning": true,
     "debug": false
   },
   "image_parameters": {}

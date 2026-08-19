@@ -78,12 +78,20 @@
     "continue_on_error": {
       "type": "boolean",
       "title": "Continue on error",
-      "description": "If set to true, the component will continue with refresh of other data sources or workbooks even if the current one fails. Note that this suppresses all trigger errors, including genuine ones. You do not need this for refreshes that are already queued or running in Tableau - those are always reported as a warning and never fail the job.",
+      "description": "If set to true, the component will continue with refresh of other data sources or workbooks even if the current one fails. Note that this suppresses all trigger errors, including genuine ones such as missing permissions. If the only case you want to tolerate is a refresh that is already in the queue, use <i>Handle 'already in queue' as warning</i> below instead.",
       "propertyOrder": 465,
       "enum": [
         false,
         true
       ],
+      "default": false
+    },
+    "already_in_queue_as_warning": {
+      "type": "boolean",
+      "format": "checkbox",
+      "title": "Handle 'already in queue' as warning",
+      "description": "If checked, a refresh that Tableau refuses to queue because one for the same data source or workbook is already queued or in progress is logged as a warning, and the job finishes successfully. Unlike <i>Continue on error</i>, this applies to that single case only - all other errors still fail the job. Unchecked (default), an already queued refresh fails the job.",
+      "propertyOrder": 470,
       "default": false
     },
     "datasources": {
