@@ -47,6 +47,12 @@ APP_VERSION = "0.0.1"
 CONNECT_MAX_ATTEMPTS = 3
 CONNECT_RETRY_BACKOFF_SECONDS = 2
 
+# How Tableau reports "a refresh for this target is already queued or running" on a refresh
+# trigger (see _is_refresh_already_queued). The code is the one observed in production; the
+# markers are a fallback for deployments/versions that use a different code for the same thing.
+ALREADY_QUEUED_ERROR_CODES = frozenset({"409093"})
+ALREADY_QUEUED_MESSAGE_MARKERS = ("already queued", "already in progress")
+
 logger = logging.getLogger("tableau.endpoint.tasks")
 
 
@@ -241,16 +247,29 @@ class Component(ComponentBase):
         datasources and ``POST .../workbooks/{id}/refresh`` for workbooks — answer with a 409
         "Resource Conflict" when a refresh for the same target is still queued or in progress
         (observed as ``409093``: "Job for '...' is already queued. Not queuing a duplicate.").
-        A conflict is the only documented 409 for these two endpoints, so the family is matched
-        by response code rather than by the wording of the message, which Tableau is free to
-        reword between versions.
 
-        This is not a failed trigger: the extract *is* being refreshed, just by the run already
-        in flight. The caller therefore logs a warning and carries on (CFTL-371 / SUPPORT-12519)
-        instead of failing the job — the previous behaviour, which forced users to switch on
-        ``continue_on_error`` and thereby suppress genuine errors too.
+        Only that one conflict is recognised, and deliberately not the whole 409 family: this is
+        the single error the component downgrades to a warning, so matching it too broadly would
+        report a job as successful when some other, unrelated conflict meant nothing was refreshed
+        at all. It is recognised by error code, falling back to Tableau's own wording because the
+        code for the same condition can differ between Tableau versions and deployments. Anything
+        else in the 409 family still fails the job (see ``_as_refresh_refused_user_exception``), so
+        an unrecognised conflict fails loudly rather than passing quietly.
+
+        The recognised case is not a failed trigger: the extract *is* being refreshed, just by the
+        run already in flight. The caller therefore logs a warning and carries on (CFTL-371 /
+        SUPPORT-12519) instead of failing the job — the previous behaviour, which forced users to
+        switch on ``continue_on_error`` and thereby suppress genuine errors too.
         """
-        return isinstance(ex, tsc.ServerResponseError) and str(ex.code).startswith("409")
+        if not isinstance(ex, tsc.ServerResponseError):
+            return False
+        code = str(ex.code)
+        if not code.startswith("409"):
+            return False
+        if code in ALREADY_QUEUED_ERROR_CODES:
+            return True
+        message = f"{ex.detail or ''} {ex.summary or ''}".lower()
+        return any(marker in message for marker in ALREADY_QUEUED_MESSAGE_MARKERS)
 
     @staticmethod
     def _already_queued_message(ex: tsc.ServerResponseError, kind_singular: str, name: str, poll_mode: bool) -> str:
@@ -274,21 +293,34 @@ class Component(ComponentBase):
         itself does not permit the operation (e.g. "Full extract refresh operation for the
         workbook is not allowed.") or when the configured account lacks the permission to refresh
         it. That is user-fixable, but it previously propagated uncaught to the entrypoint as an
-        opaque internal error (exit 2). Converting only this family mirrors the 404 conversion in
-        ``_get_all_ds_by_filter``; the caller re-raises everything else untouched.
+        opaque internal error (exit 2). Converting only these families mirrors the 404 conversion
+        in ``_get_all_ds_by_filter``; the caller re-raises everything else untouched.
 
-        The 409 "already queued" conflict is *not* handled here — it never reaches this point,
-        because ``_is_refresh_already_queued`` takes it first and the caller logs it as a warning.
+        A **409** "Resource Conflict" is also converted, for the same reason. Note this is only
+        reached by a conflict ``_is_refresh_already_queued`` did *not* recognise as "a refresh is
+        already queued or running" — that one is logged as a warning by the caller and never gets
+        here. An unrecognised conflict keeps failing the job, so nothing is silently downgraded.
         """
         if not isinstance(ex, tsc.ServerResponseError):
             return None
         # str(ServerResponseError) is a multi-line dump; detail is the actionable sentence.
         reason = ex.detail or ex.summary
-        if str(ex.code).startswith("403"):
+        code = str(ex.code)
+        if code.startswith("403"):
             return UserException(
                 f'Tableau refused the extract refresh for {kind_singular} "{name}": {reason} '
                 f"Check that the {kind_singular} allows this refresh type and that the configured "
                 f"Tableau account has permission to refresh it."
+            )
+        if code.startswith("409"):
+            # The lead sentence stays generic ("a conflict") because this matches the rest of the
+            # 409 family, whose causes we have not seen; Tableau's own detail, appended last so it
+            # cannot run into a following sentence, carries the specific cause.
+            return UserException(
+                f'Tableau refused to queue the extract refresh for {kind_singular} "{name}" because '
+                f"of a conflict — usually the previous refresh has not finished yet. Wait for the "
+                f"running refresh to complete, or trigger this component less often. "
+                f"Tableau reported: {reason}"
             )
         return None
 

@@ -246,8 +246,11 @@ class TestRefreshAlreadyQueuedWarning(unittest.TestCase):
     carries on (CFTL-371 / SUPPORT-12519) instead of failing the job. Previously this failed the
     job and the only workaround was ``continue_on_error``, which suppresses genuine errors too.
 
-    The classification stays narrow: a 403 is still a ``UserException`` (see
-    ``TestRefreshRefusedConversion``) and every other error still propagates untouched.
+    The classification stays narrow. Only *this* conflict is downgraded — recognised by error
+    code, or by Tableau's own wording when a deployment reports it under a different code. Any
+    other 409 still fails the job as the ``UserException`` merged in #21, a 403 is still a
+    ``UserException`` (see ``TestRefreshRefusedConversion``), and everything else still propagates
+    untouched. That boundary is what keeps a job from going green when nothing was refreshed.
     """
 
     @staticmethod
@@ -357,8 +360,51 @@ class TestRefreshAlreadyQueuedWarning(unittest.TestCase):
         with self.assertLogs(level="WARNING"):
             comp.run()  # must not raise
 
+    def test_unrecognised_409_conflict_still_fails_the_job(self):
+        # The point of matching narrowly: a conflict that is *not* "already queued" must keep
+        # failing the job (as the UserException merged in #21), never be downgraded to a warning
+        # that leaves the job green with nothing refreshed.
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_workbooks(comp, "wb1")
+        comp.server.workbooks.refresh.side_effect = tsc.ServerResponseError(
+            "409999", "Resource Conflict", "Some other conflict we have never seen."
+        )
+
+        with self.assertRaises(UserException) as ctx:
+            comp.run()
+        message = str(ctx.exception)
+        self.assertIn('workbook "wb1"', message)
+        self.assertIn("Some other conflict we have never seen.", message)
+
+    def test_already_queued_under_another_code_is_still_recognised(self):
+        # The wording fallback: the sub-code for this condition differs between Tableau versions
+        # and deployments, so Tableau's own message is trusted when the code is unfamiliar.
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_workbooks(comp, "wb1")
+        comp.server.workbooks.refresh.side_effect = tsc.ServerResponseError(
+            "409042", "Resource Conflict", "Job for 'wb1' is already queued. Not queuing a duplicate."
+        )
+
+        with self.assertLogs(level="WARNING") as logs:
+            comp.run()  # must not raise
+
+        self.assertIn("already queued or running in Tableau", "\n".join(logs.output))
+
+    def test_refresh_already_in_progress_wording_is_recognised(self):
+        # The other wording Tableau uses for the same situation.
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_workbooks(comp, "wb1")
+        comp.server.workbooks.refresh.side_effect = tsc.ServerResponseError(
+            "409080", "Resource Conflict", "An extract refresh for this workbook is already in progress."
+        )
+
+        with self.assertLogs(level="WARNING") as logs:
+            comp.run()  # must not raise
+
+        self.assertIn("already queued or running in Tableau", "\n".join(logs.output))
+
     def test_other_4xx_conflict_family_still_fails_the_job(self):
-        # Guards the classification boundary: only the 409 family is downgraded to a warning. A 4xx
+        # Guards the outer boundary: outside the 409 family nothing is reclassified at all. A 4xx
         # from another family (e.g. 400 bad request) must still surface as its original exception
         # and exit 2, exactly as before.
         comp = self._component(workbooks=[{"name": "wb1"}])
