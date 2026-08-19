@@ -78,7 +78,10 @@
     "continue_on_error": {
       "type": "boolean",
       "title": "Continue on error",
-      "description": "If set to true, the component will continue with refresh of other data sources or workbooks even if the current one fails. Note that this suppresses all trigger errors, including genuine ones such as missing permissions. If the only case you want to tolerate is a refresh that is already in the queue, use <i>Handle 'already in queue' as warning</i> below instead.",
+      "description": "If set to true, the component will continue with refresh of other data sources or workbooks even if the current one fails.",
+      "options": {
+        "tooltip": "This suppresses all trigger errors, including genuine ones such as missing permissions. If the only case you want to tolerate is a refresh that is already in the queue, use \"Handle 'already in queue' as warning\" below instead."
+      },
       "propertyOrder": 465,
       "enum": [
         false,
@@ -90,7 +93,10 @@
       "type": "boolean",
       "format": "checkbox",
       "title": "Handle 'already in queue' as warning",
-      "description": "If checked, a refresh that Tableau refuses to queue because one for the same data source or workbook is already queued or in progress is logged as a warning, and the job finishes successfully. Unlike <i>Continue on error</i>, this applies to that single case only - all other errors still fail the job. Unchecked (default), an already queued refresh fails the job.",
+      "description": "Log a refresh that is already queued in Tableau as a warning instead of failing the job",
+      "options": {
+        "tooltip": "When a refresh for the same data source or workbook is already queued or in progress, Tableau refuses to queue a duplicate. Checked, that is logged as a warning and the job finishes successfully. Unlike \"Continue on error\", it applies to this single case only - a missing permission, a disallowed refresh type or an unrecognised Tableau conflict still fails the job. Unchecked (the default), an already queued refresh fails the job."
+      },
       "propertyOrder": 470,
       "default": false
     },

@@ -168,6 +168,10 @@ class Component(ComponentBase):
         # it always has. See _is_refresh_already_queued.
         already_in_queue_as_warning = params.get(KEY_ALREADY_IN_QUEUE_AS_WARNING, False)
         poll_mode = bool(params.get(KEY_POLL_MODE))
+        # Counted so the run can state the aggregate: N individual warnings followed by
+        # "finished successfully" otherwise reads like a fully successful run.
+        triggers_attempted = 0
+        already_queued_skipped = 0
 
         try:
             sign_in_ctx = self.server.auth.sign_in(self.auth)
@@ -198,6 +202,7 @@ class Component(ComponentBase):
                 self.validate_dataset_types(ds_tasks, ds_to_refresh)
 
                 for ds in data_sources:
+                    triggers_attempted += 1
                     task = ds_tasks[ds[KEY_DS_NAME]][ds[KEY_DS_TYPE].lower()]
                     logging.info(f'Triggering extract for: "{ds[KEY_DS_NAME]}" with LUID: "{task.target.id}""')
                     try:
@@ -205,6 +210,7 @@ class Component(ComponentBase):
                         executed_jobs[ds[KEY_DS_NAME]] = job_id
                     except Exception as ex:
                         if already_in_queue_as_warning and self._is_refresh_already_queued(ex):
+                            already_queued_skipped += 1
                             logging.warning(self._already_queued_message(ex, "datasource", ds[KEY_DS_NAME], poll_mode))
                         elif continue_on_error:
                             logging.warning(f"Failed to trigger extract for dataset: {ds[KEY_DS_NAME]}. {ex}")
@@ -218,12 +224,14 @@ class Component(ComponentBase):
             if workbooks:
                 all_wb, validation_errors = self._get_all_ds_by_filter("workbooks", workbooks)
                 for wb in all_wb:
+                    triggers_attempted += 1
                     logging.info(f'Triggering extract for: "{wb.name}" with LUID: "{wb.id}""')
                     try:
                         job = self.server.workbooks.refresh(wb)
                         executed_jobs[wb.name] = job.id
                     except Exception as ex:
                         if already_in_queue_as_warning and self._is_refresh_already_queued(ex):
+                            already_queued_skipped += 1
                             logging.warning(self._already_queued_message(ex, "workbook", wb.name, poll_mode))
                         elif continue_on_error:
                             logging.warning(f"Failed to trigger extract for workbook: {wb.name}. {ex}")
@@ -232,6 +240,12 @@ class Component(ComponentBase):
                             if user_error:
                                 raise user_error from ex
                             raise ex
+
+            if already_queued_skipped:
+                logging.info(
+                    f"{already_queued_skipped} of {triggers_attempted} refreshes were already queued or running "
+                    f"in Tableau and were skipped; no duplicate was triggered for them."
+                )
 
             # poll job statuses
             if poll_mode:

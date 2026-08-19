@@ -363,6 +363,29 @@ class TestRefreshAlreadyQueuedWarning(unittest.TestCase):
         with self.assertLogs(level="WARNING"):
             comp.run()  # must not raise
 
+    def test_skipped_refreshes_are_summarised(self):
+        # The aggregate line: N individual warnings followed by "Trigger finished successfully!"
+        # otherwise reads the same as a run where everything refreshed.
+        comp = self._component(workbooks=[{"name": "wb1"}, {"name": "wb2"}])
+        self._with_workbooks(comp, "wb1", "wb2")
+        comp.server.workbooks.refresh.side_effect = [self._already_queued("wb1"), mock.Mock(id="job-2")]
+
+        with self.assertLogs(level="INFO") as logs:
+            comp.run()
+
+        self.assertIn("1 of 2 refreshes were already queued", "\n".join(logs.output))
+
+    def test_no_summary_line_when_nothing_was_skipped(self):
+        # A clean run's log is unchanged — the summary only appears when something was skipped.
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_workbooks(comp, "wb1")
+        comp.server.workbooks.refresh.return_value = mock.Mock(id="job-1")
+
+        with self.assertLogs(level="INFO") as logs:
+            comp.run()
+
+        self.assertNotIn("were already queued or running", "\n".join(logs.output))
+
     def test_unrecognised_409_conflict_still_fails_the_job(self):
         # The point of matching narrowly: a conflict that is *not* "already queued" must keep
         # failing the job (as the UserException merged in #21), never be downgraded to a warning
