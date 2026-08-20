@@ -31,6 +31,8 @@
       }
     ],
     "poll_mode": 1,
+    "continue_on_error": false,
+    "already_in_queue_as_warning": false,
     "debug": false
   },
   "image_parameters": {

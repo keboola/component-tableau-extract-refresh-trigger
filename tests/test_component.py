@@ -236,20 +236,23 @@ class TestRefreshRefusedConversion(unittest.TestCase):
         comp._wait_for_finish.assert_called_once_with({"wb1": "job-1"})
 
 
-class TestRefreshAlreadyQueuedConversion(unittest.TestCase):
-    """A Tableau 409 "already queued" conflict becomes a ``UserException`` instead of an internal error.
+class TestRefreshAlreadyQueuedWarning(unittest.TestCase):
+    """With ``already_in_queue_as_warning`` on, an already-queued refresh warns and the run succeeds.
 
     Tableau answers ``tasks.run`` / ``workbooks.refresh`` with a 409 ``ServerResponseError``
     ("Resource Conflict" / "Job for '...' is already queued. Not queuing a duplicate.") when a
-    refresh for the same target is still queued or running — the trigger fired again before the
-    previous refresh finished. That is a scheduling problem the user can fix, but the error
-    previously propagated uncaught to the entrypoint and exited 2 (opaque internal error, pages
-    the team) instead of 1 (clear user error).
+    refresh for the same target is still queued or running. Nothing is broken in that case — the
+    extract is being refreshed by the run already in flight — so a configuration can opt into
+    treating it as a warning (CFTL-371 / SUPPORT-12519) rather than reaching for
+    ``continue_on_error``, which suppresses genuine errors too.
 
-    The conversion happens in the same helper and the same already-failing branch as the 403
-    case, so the ``continue_on_error`` path, every other error, and the success path are all
-    untouched. Crucially the job still *fails*: an already-queued refresh is never reported as
-    a success.
+    Every case here enables the option; ``TestAlreadyQueuedWithoutOptIn`` covers the default.
+
+    The classification stays narrow. Only *this* conflict is downgraded — recognised by error
+    code, or by Tableau's own wording when a deployment reports it under a different code. Any
+    other 409 still fails the job as the ``UserException`` merged in #21, a 403 is still a
+    ``UserException`` (see ``TestRefreshRefusedConversion``), and everything else still propagates
+    untouched. That boundary is what keeps a job from going green when nothing was refreshed.
     """
 
     @staticmethod
@@ -261,9 +264,204 @@ class TestRefreshAlreadyQueuedConversion(unittest.TestCase):
 
     def _component(self, **cfg):
         comp = Component.__new__(Component)  # bypass __init__ (needs a live server + datadir)
-        comp.cfg_params = {"datasources": [], "workbooks": [], **cfg}
+        # The behaviour under test is opt-in, so it is switched on for every case in this class.
+        comp.cfg_params = {"datasources": [], "workbooks": [], "already_in_queue_as_warning": True, **cfg}
         comp.auth = mock.Mock()
         comp.server = mock.MagicMock()  # MagicMock: sign_in() is used as a context manager
+        comp._wait_for_finish = mock.Mock()
+        return comp
+
+    @staticmethod
+    def _with_workbooks(comp, *names):
+        workbooks = []
+        for name in names:
+            workbook = mock.Mock()
+            workbook.name = name  # must be set post-construction: Mock(name=...) sets the repr
+            workbooks.append(workbook)
+        comp._get_all_ds_by_filter = mock.Mock(return_value=(workbooks, []))
+        return workbooks
+
+    @staticmethod
+    def _with_one_datasource(comp, side_effect):
+        task = mock.Mock()
+        comp._get_all_ds_by_filter = mock.Mock(return_value=([mock.Mock()], []))
+        comp.validate_dataset_names = mock.Mock(return_value={"ds1": "FullRefresh"})
+        comp.get_all_datasource_refresh_tasks = mock.Mock(return_value=[task])
+        comp.get_all_ds_for_tasks = mock.Mock(return_value={"ds1": {"fullrefresh": task}})
+        comp.validate_dataset_types = mock.Mock()
+        comp._run_task = mock.Mock(side_effect=side_effect)
+
+    def test_datasource_already_queued_warns_instead_of_failing(self):
+        # The fix under test, on the path the customer hit: tasks.run() rejected as a duplicate.
+        comp = self._component(datasources=[{"name": "ds1", "type": "FullRefresh"}])
+        self._with_one_datasource(comp, self._already_queued("ds1"))
+
+        with self.assertLogs(level="WARNING") as logs:
+            comp.run()  # must not raise
+
+        warning = "\n".join(logs.output)
+        self.assertIn('datasource "ds1"', warning)
+        self.assertIn("already queued or running in Tableau", warning)
+        # Tableau's own detail is passed through, so the log still states the actual cause.
+        self.assertIn("Job for 'ds1' is already queued. Not queuing a duplicate.", warning)
+
+    def test_workbook_already_queued_warns_instead_of_failing(self):
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_workbooks(comp, "wb1")
+        comp.server.workbooks.refresh.side_effect = self._already_queued("wb1")
+
+        with self.assertLogs(level="WARNING") as logs:
+            comp.run()  # must not raise
+
+        self.assertIn('workbook "wb1"', "\n".join(logs.output))
+
+    def test_remaining_targets_are_still_refreshed(self):
+        # "Continue execution" means the rest of the list is not skipped: the second workbook is
+        # still triggered, and it is the only one recorded for polling.
+        comp = self._component(workbooks=[{"name": "wb1"}, {"name": "wb2"}], poll_mode=1)
+        self._with_workbooks(comp, "wb1", "wb2")
+        comp.server.workbooks.refresh.side_effect = [self._already_queued("wb1"), mock.Mock(id="job-2")]
+
+        with self.assertLogs(level="WARNING"):
+            comp.run()
+
+        self.assertEqual(comp.server.workbooks.refresh.call_count, 2)
+        comp._wait_for_finish.assert_called_once_with({"wb2": "job-2"})
+
+    def test_already_queued_refresh_is_not_polled(self):
+        # A 409 carries no job id, so there is nothing to poll: the run must not invent one, and
+        # must not wait for the refresh Tableau is already running.
+        comp = self._component(workbooks=[{"name": "wb1"}], poll_mode=1)
+        self._with_workbooks(comp, "wb1")
+        comp.server.workbooks.refresh.side_effect = self._already_queued("wb1")
+
+        with self.assertLogs(level="WARNING") as logs:
+            comp.run()
+
+        comp._wait_for_finish.assert_called_once_with({})
+        # In poll mode the warning says so, so the user is not left assuming the run waited for it.
+        self.assertIn("does not wait", "\n".join(logs.output))
+
+    def test_warning_omits_the_polling_note_when_not_polling(self):
+        # Without poll mode the run never waits for anything, so the note would be noise.
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_workbooks(comp, "wb1")
+        comp.server.workbooks.refresh.side_effect = self._already_queued("wb1")
+
+        with self.assertLogs(level="WARNING") as logs:
+            comp.run()
+
+        self.assertNotIn("does not wait", "\n".join(logs.output))
+
+    def test_continue_on_error_configurations_behave_the_same(self):
+        # Configurations that switched continue_on_error on as a workaround keep working: the 409
+        # is warned about and skipped, exactly as it now is without the flag.
+        comp = self._component(workbooks=[{"name": "wb1"}], continue_on_error=True)
+        self._with_workbooks(comp, "wb1")
+        comp.server.workbooks.refresh.side_effect = self._already_queued("wb1")
+
+        with self.assertLogs(level="WARNING"):
+            comp.run()  # must not raise
+
+    def test_skipped_refreshes_are_summarised(self):
+        # The aggregate line: N individual warnings followed by "Trigger finished successfully!"
+        # otherwise reads the same as a run where everything refreshed.
+        comp = self._component(workbooks=[{"name": "wb1"}, {"name": "wb2"}])
+        self._with_workbooks(comp, "wb1", "wb2")
+        comp.server.workbooks.refresh.side_effect = [self._already_queued("wb1"), mock.Mock(id="job-2")]
+
+        with self.assertLogs(level="INFO") as logs:
+            comp.run()
+
+        self.assertIn("1 of 2 refreshes were already queued", "\n".join(logs.output))
+
+    def test_no_summary_line_when_nothing_was_skipped(self):
+        # A clean run's log is unchanged — the summary only appears when something was skipped.
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_workbooks(comp, "wb1")
+        comp.server.workbooks.refresh.return_value = mock.Mock(id="job-1")
+
+        with self.assertLogs(level="INFO") as logs:
+            comp.run()
+
+        self.assertNotIn("were already queued or running", "\n".join(logs.output))
+
+    def test_unrecognised_409_conflict_still_fails_the_job(self):
+        # The point of matching narrowly: a conflict that is *not* "already queued" must keep
+        # failing the job (as the UserException merged in #21), never be downgraded to a warning
+        # that leaves the job green with nothing refreshed.
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_workbooks(comp, "wb1")
+        comp.server.workbooks.refresh.side_effect = tsc.ServerResponseError(
+            "409999", "Resource Conflict", "Some other conflict we have never seen."
+        )
+
+        with self.assertRaises(UserException) as ctx:
+            comp.run()
+        message = str(ctx.exception)
+        self.assertIn('workbook "wb1"', message)
+        self.assertIn("Some other conflict we have never seen.", message)
+
+    def test_already_queued_under_another_code_is_still_recognised(self):
+        # The wording fallback: the sub-code for this condition differs between Tableau versions
+        # and deployments, so Tableau's own message is trusted when the code is unfamiliar.
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_workbooks(comp, "wb1")
+        comp.server.workbooks.refresh.side_effect = tsc.ServerResponseError(
+            "409042", "Resource Conflict", "Job for 'wb1' is already queued. Not queuing a duplicate."
+        )
+
+        with self.assertLogs(level="WARNING") as logs:
+            comp.run()  # must not raise
+
+        self.assertIn("already queued or running in Tableau", "\n".join(logs.output))
+
+    def test_refresh_already_in_progress_wording_is_recognised(self):
+        # The other wording Tableau uses for the same situation.
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_workbooks(comp, "wb1")
+        comp.server.workbooks.refresh.side_effect = tsc.ServerResponseError(
+            "409080", "Resource Conflict", "An extract refresh for this workbook is already in progress."
+        )
+
+        with self.assertLogs(level="WARNING") as logs:
+            comp.run()  # must not raise
+
+        self.assertIn("already queued or running in Tableau", "\n".join(logs.output))
+
+    def test_other_4xx_conflict_family_still_fails_the_job(self):
+        # Guards the outer boundary: outside the 409 family nothing is reclassified at all. A 4xx
+        # from another family (e.g. 400 bad request) must still surface as its original exception
+        # and exit 2, exactly as before.
+        comp = self._component(workbooks=[{"name": "wb1"}])
+        self._with_workbooks(comp, "wb1")
+        comp.server.workbooks.refresh.side_effect = tsc.ServerResponseError("400006", "Bad Request", "nope")
+
+        with self.assertRaises(tsc.ServerResponseError):
+            comp.run()
+
+
+class TestAlreadyQueuedWithoutOptIn(unittest.TestCase):
+    """Without ``already_in_queue_as_warning``, an already-queued refresh still fails the job.
+
+    The warning behaviour is opt-in and off by default, so a configuration that does not ask for it
+    behaves exactly as it did before the option existed: the 409 becomes the ``UserException``
+    merged in #21 — a clear exit 1, never an opaque exit 2 — no job is recorded for polling, and
+    the run stops. This is the backward-compatibility half of ``TestRefreshAlreadyQueuedWarning``.
+    """
+
+    @staticmethod
+    def _already_queued(name="<name>"):
+        return tsc.ServerResponseError(
+            "409093", "Resource Conflict", f"Job for '{name}' is already queued. Not queuing a duplicate."
+        )
+
+    def _component(self, **cfg):
+        comp = Component.__new__(Component)  # bypass __init__ (needs a live server + datadir)
+        comp.cfg_params = {"datasources": [], "workbooks": [], **cfg}  # option absent -> default off
+        comp.auth = mock.Mock()
+        comp.server = mock.MagicMock()  # MagicMock: sign_in() is used as a context manager
+        comp._wait_for_finish = mock.Mock()
         return comp
 
     def _with_one_workbook(self, comp):
@@ -272,8 +470,19 @@ class TestRefreshAlreadyQueuedConversion(unittest.TestCase):
         comp._get_all_ds_by_filter = mock.Mock(return_value=([workbook], []))
         return workbook
 
-    def test_datasource_already_queued_raises_user_exception(self):
-        # The fix under test, on the path the alert came from: tasks.run() rejected as a duplicate.
+    def test_workbook_already_queued_fails_the_job_by_default(self):
+        comp = self._component(workbooks=[{"name": "wb1"}], poll_mode=1)
+        self._with_one_workbook(comp)
+        comp.server.workbooks.refresh.side_effect = self._already_queued("wb1")
+
+        with self.assertRaises(UserException) as ctx:
+            comp.run()
+        message = str(ctx.exception)
+        self.assertIn('workbook "wb1"', message)
+        self.assertIn("refused to queue the extract refresh", message)
+        comp._wait_for_finish.assert_not_called()  # nothing queued, so nothing to poll
+
+    def test_datasource_already_queued_fails_the_job_by_default(self):
         comp = self._component(datasources=[{"name": "ds1", "type": "FullRefresh"}])
         task = mock.Mock()
         comp._get_all_ds_by_filter = mock.Mock(return_value=([mock.Mock()], []))
@@ -287,51 +496,25 @@ class TestRefreshAlreadyQueuedConversion(unittest.TestCase):
             comp.run()
         message = str(ctx.exception)
         self.assertIn('datasource "ds1"', message)
-        self.assertIn("refused to queue the extract refresh", message)
-        # Tableau's own detail is appended verbatim, and last, so it carries the specific cause
-        # and cannot run into a following sentence.
+        # #21's message shape: Tableau's own detail is appended verbatim, and last.
         self.assertTrue(message.endswith("is already queued. Not queuing a duplicate."), message)
 
-    def test_workbook_already_queued_raises_user_exception(self):
-        comp = self._component(workbooks=[{"name": "wb1"}])
+    def test_option_explicitly_false_behaves_the_same(self):
+        comp = self._component(workbooks=[{"name": "wb1"}], already_in_queue_as_warning=False)
         self._with_one_workbook(comp)
         comp.server.workbooks.refresh.side_effect = self._already_queued("wb1")
-
-        with self.assertRaises(UserException) as ctx:
-            comp.run()
-        self.assertIn('workbook "wb1"', str(ctx.exception))
-
-    def test_already_queued_still_fails_the_job(self):
-        # The invariant that keeps this defensive: a 409 is reclassified, never turned into a
-        # success. run() must raise, and no job must be recorded for polling.
-        comp = self._component(workbooks=[{"name": "wb1"}], poll_mode=True)
-        self._with_one_workbook(comp)
-        comp.server.workbooks.refresh.side_effect = self._already_queued("wb1")
-        comp._wait_for_finish = mock.Mock()
 
         with self.assertRaises(UserException):
             comp.run()
-        comp._wait_for_finish.assert_not_called()
 
-    def test_continue_on_error_still_skips_the_409(self):
-        # The continue_on_error branch is untouched: a 409 is still logged and skipped,
-        # never converted, so configurations relying on it behave identically.
+    def test_continue_on_error_still_skips_it(self):
+        # continue_on_error is untouched by the new option: it swallows this like any other error.
         comp = self._component(workbooks=[{"name": "wb1"}], continue_on_error=True)
         self._with_one_workbook(comp)
         comp.server.workbooks.refresh.side_effect = self._already_queued("wb1")
 
-        comp.run()  # must not raise
-
-    def test_other_4xx_conflict_family_is_not_converted(self):
-        # Guards the classification boundary: only 403 and 409 are converted. A 4xx from
-        # another family (e.g. 400 bad request) must still surface as its original
-        # exception and exit 2, exactly as before.
-        comp = self._component(workbooks=[{"name": "wb1"}])
-        self._with_one_workbook(comp)
-        comp.server.workbooks.refresh.side_effect = tsc.ServerResponseError("400006", "Bad Request", "nope")
-
-        with self.assertRaises(tsc.ServerResponseError):
-            comp.run()
+        with self.assertLogs(level="WARNING"):
+            comp.run()  # must not raise
 
 
 class TestConnectToServer(unittest.TestCase):
