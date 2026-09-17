@@ -20,11 +20,38 @@ E.g. **`SITE_ID`** in `https://dub01.online.tableau.com/#/site/SITE_ID/home`
 
 Since 02/2022 the PATs are required as a method of authentication. Follow [this guide](https://help.tableau.com/current/pro/desktop/en-us/useracct.htm#create-and-revoke-personal-access-tokens) to set it up 
 
+**Use a separate PAT for each configuration.** Tableau allows only one active session per PAT
+([Tableau docs](https://help.tableau.com/current/online/en-us/security_personal_access_tokens.htm)):
+
+> Users can't request concurrent Tableau Cloud sessions with a PAT. Signing in again with the same PAT,
+> whether at the same site or a different site, will terminate the previous session and result in an
+> authentication error.
+
+If two configurations share a PAT and their runs overlap, the second sign-in terminates the first job's
+session. That job has already triggered its refresh, so Tableau carries on normally and only the Keboola
+job fails, on its next status check:
+
+```
+Failed to get job status for 'My Datasource': Failed Sign In Error:
+	401002: Unauthorized Access
+		Invalid authentication credentials were provided.
+```
+
+Configurations sharing a PAT must not run concurrently. That includes tasks in the same flow phase, which
+start in parallel, not just separate flows. See the `Poll mode` note below for what this costs when it happens.
+
 
 ## Poll mode
 
 Specify whether the app should wait for all triggered tasks to finish. If set to `Yes` the trigger will wait for all triggered jobs to finish, 
 otherwise it will trigger all the jobs and finish successfully right after.
+
+**Note on lost sessions.** In poll mode the component checks job status every 60 seconds. If the Tableau
+session has been terminated (see `PAT` above), the status check fails, the component logs a warning and
+retries with the same terminated session. It does not sign in again and has no poll timeout of its own, so
+the job normally keeps polling until the platform stops it at the one hour container timeout. That hour is
+billed as job runtime. Setting poll mode to `No` avoids the wait entirely where the flow does not need to
+know whether the refresh finished.
 
 ## Continue on error
 
