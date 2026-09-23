@@ -426,7 +426,24 @@ class Component(ComponentBase):
     def _get_all_ds_by_filter(self, kind, data_sources):
         all_ds = list()
         validation_errors = list()
-        for ds_filter in data_sources:
+        for position, ds_filter in enumerate(data_sources, start=1):
+            # The configuration schema declares every "datasources"/"workbooks" entry as an
+            # object ({"name": ..., "tag": ..., "luid": ...}). A configuration that was not
+            # produced by the UI can hold something else there (an array, a bare string), and
+            # that value reached ``ds_filter.get(...)`` below and crashed the job with an
+            # opaque ``AttributeError`` (exit 2) that pages the team and tells the user
+            # nothing — not even which entry was wrong.
+            #
+            # Rejecting it here surfaces the same failure as a user-fixable configuration
+            # error (exit 1) naming the offending entry. Well-formed entries are unaffected:
+            # every dict takes exactly the path it took before.
+            if not isinstance(ds_filter, dict):
+                kind_singular = kind.rstrip("s")  # "datasources" -> "datasource", "workbooks" -> "workbook"
+                raise UserException(
+                    f'Invalid "{kind}" configuration: entry #{position} is of type '
+                    f"{type(ds_filter).__name__}, but each {kind_singular} entry must be an object with "
+                    f'"name" (and optionally "tag" / "luid"). Fix that entry in the configuration.'
+                )
             # if luid specified get the source
             if ds_filter.get(KEY_LUID):
                 try:
